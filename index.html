@@ -69,6 +69,11 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 
     <hr>
 
+    <b>Total Pegawai:</b>
+    <div id="totalPegawai">0</div>
+
+    <hr>
+
     <b>Statistik Unit</b>
     <canvas id="chartUnit"></canvas>
 
@@ -87,7 +92,7 @@ osm.addTo(map);
 var geojsonLayer;
 var markers = [];
 var allData = [];
-var warnaUnit = {}; // mapping warna
+var warnaUnit = {};
 
 // ================= GENERATE WARNA OTOMATIS =================
 function getRandomColor() {
@@ -100,6 +105,9 @@ fetch("pegawai.geojson")
 .then(data => {
 
     allData = data.features.map(f => f.properties);
+
+    // TOTAL PEGAWAI
+    document.getElementById("totalPegawai").innerHTML = allData.length;
 
     // Ambil unit unik
     var unitUnik = [...new Set(allData.map(d => d.unit))];
@@ -142,16 +150,16 @@ function tampilkanData(filter){
                     var warna = warnaUnit[d.unit];
 
                     var marker = L.circleMarker(latlng, {
-                        radius: 0.5,
+                        radius: 5,
                         fillColor: warna,
                         color: "#000",
                         weight: 1,
                         fillOpacity: 0.9
                     }).bindPopup(`
-                        <b>Nama:</b> ${d.nama}<br>
-                        <b>Unit Kerja:</b> ${d.unit}<br>
-                        <b>Nama Jabatan:</b> ${d.jabatan}<br>
-                        <b>Alamat:</b> ${d.alamat}
+                        <b>Nama:</b> ${d.Nama}<br>
+                        <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
+                        <b>Nama Jabatan:</b> ${d["Nama Jabatan"]}<br>
+                        <b>Alamat:</b> ${d["Alamat Rumah"]}
                     `);
 
                     marker.nip = d.nip;
@@ -176,7 +184,7 @@ function cariNIP(){
     var input = document.getElementById("searchNIP").value;
 
     markers.forEach(m => {
-        if(m.nip === input){
+        if(m.nip == input){
             map.setView(m.getLatLng(), 15);
             m.openPopup();
         }
@@ -194,21 +202,31 @@ function hitungStatistik(field){
 
 function buatChart(){
 
+    // ================= UNIT PIE =================
     var unitStat = hitungStatistik("unit");
+
     new Chart(document.getElementById("chartUnit"), {
-        type: 'bar',
+        type: 'pie',
         data: {
             labels: Object.keys(unitStat),
-            datasets: [{ data: Object.values(unitStat) }]
+            datasets: [{
+                data: Object.values(unitStat),
+                backgroundColor: Object.keys(unitStat).map(u => warnaUnit[u])
+            }]
         }
     });
 
+    // ================= JABATAN PIE =================
     var jabatanStat = hitungStatistik("jabatan");
+
     new Chart(document.getElementById("chartJabatan"), {
-        type: 'bar',
+        type: 'pie',
         data: {
             labels: Object.keys(jabatanStat),
-            datasets: [{ data: Object.values(jabatanStat) }]
+            datasets: [{
+                data: Object.values(jabatanStat),
+                backgroundColor: Object.values(jabatanStat).map(() => getRandomColor())
+            }]
         }
     });
 }
