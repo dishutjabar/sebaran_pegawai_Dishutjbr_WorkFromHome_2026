@@ -1,34 +1,231 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebGIS Sederhana</title>
+    <title>Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- Chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
-        #map {
-            height: 100vh;
+        body { margin: 0; font-family: Arial; }
+        #map { height: 100vh; }
+
+        .title {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 10px 20px;
+            font-weight: bold;
+            z-index: 1000;
+            border-radius: 8px;
+        }
+
+        .panel {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+            background: white;
+            padding: 10px;
+            z-index: 1000;
+            border-radius: 8px;
+            width: 300px;
+        }
+
+        .marker {
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            border: 2px solid white;
         }
     </style>
 </head>
 <body>
 
+<div class="title">
+Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
+</div>
+
 <div id="map"></div>
 
+<div class="panel">
+    <b>Filter Unit</b><br>
+    <select id="filterUnit">
+        <option value="all">Semua</option>
+    </select>
+
+    <hr>
+
+    <b>Cari NIP</b><br>
+    <input type="text" id="searchNIP" placeholder="Masukkan NIP">
+    <button onclick="cariNIP()">Cari</button>
+
+    <hr>
+
+    <b>Statistik Unit</b>
+    <canvas id="chartUnit"></canvas>
+
+    <b>Statistik Jabatan</b>
+    <canvas id="chartJabatan"></canvas>
+</div>
+
 <script>
-    var map = L.map('map').setView([-6.9, 107.6], 10);
+// ================= MAP =================
+var map = L.map('map').setView([-6.9, 107.6], 10);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+osm.addTo(map);
+
+// ================= GLOBAL =================
+var geojsonLayer;
+var markers = [];
+var allData = [];
+var warnaUnit = {}; // mapping warna
+
+// ================= GENERATE WARNA OTOMATIS =================
+function getRandomColor() {
+    return '#' + Math.floor(Math.random()*16777215).toString(16);
+}
+
+// ================= LOAD DATA =================
+fetch("pegawai.geojson")
+.then(res => res.json())
+.then(data => {
+
+    allData = data.features.map(f => f.properties);
+
+    // Ambil unit unik
+    var unitUnik = [...new Set(allData.map(d => d.unit))];
+
+    // Assign warna otomatis
+    unitUnik.forEach(u => {
+        warnaUnit[u] = getRandomColor();
+    });
+
+    // Isi dropdown
+    var select = document.getElementById("filterUnit");
+    unitUnik.forEach(u => {
+        var opt = document.createElement("option");
+        opt.value = u;
+        opt.innerHTML = u;
+        select.appendChild(opt);
+    });
+
+    tampilkanData("all");
+    buatChart();
+});
+
+// ================= TAMPILKAN DATA =================
+function tampilkanData(filter){
+
+    if(geojsonLayer) map.removeLayer(geojsonLayer);
+    markers = [];
+
+    fetch("pegawai.geojson")
+    .then(res => res.json())
+    .then(data => {
+
+        geojsonLayer = L.geoJSON(data, {
+            pointToLayer: function(feature, latlng){
+
+                var d = feature.properties;
+
+                if(filter === "all" || d.unit === filter){
+
+                    var warna = warnaUnit[d.unit];
+
+                    var marker = L.circleMarker(latlng, {
+                        radius: 0.5,
+                        fillColor: warna,
+                        color: "#000",
+                        weight: 1,
+                        fillOpacity: 0.9
+                    }).bindPopup(`
+                        <b>Nama:</b> ${d.nama}<br>
+                        <b>Unit Kerja:</b> ${d.unit}<br>
+                        <b>Nama Jabatan:</b> ${d.jabatan}<br>
+                        <b>Alamat:</b> ${d.alamat}
+                    `);
+
+                    marker.nip = d.nip;
+                    marker.unit = d.unit;
+
+                    markers.push(marker);
+                    return marker;
+                }
+            }
+        }).addTo(map);
+
+    });
+}
+
+// ================= FILTER =================
+document.getElementById("filterUnit").onchange = function(){
+    tampilkanData(this.value);
+};
+
+// ================= SEARCH =================
+function cariNIP(){
+    var input = document.getElementById("searchNIP").value;
+
+    markers.forEach(m => {
+        if(m.nip === input){
+            map.setView(m.getLatLng(), 15);
+            m.openPopup();
+        }
+    });
+}
+
+// ================= STATISTIK =================
+function hitungStatistik(field){
+    let result = {};
+    allData.forEach(d => {
+        result[d[field]] = (result[d[field]] || 0) + 1;
+    });
+    return result;
+}
+
+function buatChart(){
+
+    var unitStat = hitungStatistik("unit");
+    new Chart(document.getElementById("chartUnit"), {
+        type: 'bar',
+        data: {
+            labels: Object.keys(unitStat),
+            datasets: [{ data: Object.values(unitStat) }]
+        }
+    });
+
+    var jabatanStat = hitungStatistik("jabatan");
+    new Chart(document.getElementById("chartJabatan"), {
+        type: 'bar',
+        data: {
+            labels: Object.keys(jabatanStat),
+            datasets: [{ data: Object.values(jabatanStat) }]
+        }
+    });
+}
+
+// ================= BATAS ADMIN =================
+fetch("Jawa Barat.geojson")
+.then(res => res.json())
+.then(data => {
+    L.geoJSON(data, {
+        style: {
+            color: "black",
+            weight: 1,
+            fillOpacity: 0
+        }
     }).addTo(map);
+});
 
-    // Contoh marker
-    L.marker([-6.9, 107.6]).addTo(map)
-        .bindPopup("Ini contoh titik")
-        .openPopup();
 </script>
 
 </body>
