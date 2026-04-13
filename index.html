@@ -69,10 +69,7 @@
 
         button:hover { background: #1a5edb; }
 
-        /* SEMBUNYIKAN TOP UNIT */
-        #topUnit {
-            display: none;
-        }
+        #topUnit { display: none; }
 
         /* LEGEND FLOAT */
         #legendFloating {
@@ -154,11 +151,11 @@
 
 <script>
 
-// ================= MAP =================
+// MAP
 var map = L.map('map').setView([-6.9, 107.6], 10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// ================= GLOBAL =================
+// GLOBAL
 var markersLayer = L.layerGroup().addTo(map);
 var allData = [];
 var markers = [];
@@ -166,18 +163,16 @@ var warnaUnit = {};
 var chartUnit;
 var selectedKabupaten = null;
 
-// ================= FIX NUMBER =================
 function fixNumber(val){
     if(!val) return NaN;
     return parseFloat(String(val).replace(",", "."));
 }
 
-// ================= RANDOM COLOR =================
 function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// ================= LOAD PEGAWAI =================
+// LOAD PEGAWAI
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
@@ -197,7 +192,6 @@ fetch("pegawai.geojson")
         select.appendChild(opt);
     });
 
-    // LEGEND
     let legendDiv = document.getElementById("legendContent");
     Object.keys(warnaUnit).forEach(u => {
         legendDiv.innerHTML += `
@@ -210,13 +204,12 @@ fetch("pegawai.geojson")
     tampilkanData();
 });
 
-// ================= TOGGLE LEGEND =================
 function toggleLegend(){
     let el = document.getElementById("legendContent");
     el.style.display = el.style.display === "block" ? "none" : "block";
 }
 
-// ================= LOAD KABUPATEN =================
+// LOAD KABUPATEN
 fetch("Jawa Barattt.geojson")
 .then(res => res.json())
 .then(data => {
@@ -231,14 +224,9 @@ fetch("Jawa Barattt.geojson")
             layer.bindPopup(`<b>Kabupaten:</b> ${nama}<br><i>Klik untuk filter</i>`);
 
             layer.on("click", function(){
-
                 selectedKabupaten = feature;
-
-                document.getElementById("infoKab").innerHTML =
-                    `<b>${nama}</b>`;
-
+                document.getElementById("infoKab").innerHTML = `<b>${nama}</b>`;
                 tampilkanData();
-
                 map.fitBounds(layer.getBounds());
             });
         }
@@ -250,7 +238,7 @@ fetch("Jawa Barattt.geojson")
     }).addTo(map);
 });
 
-// ================= TAMPILKAN DATA =================
+// TAMPILKAN DATA
 function tampilkanData(){
 
     markersLayer.clearLayers();
@@ -284,7 +272,7 @@ function tampilkanData(){
             radius: 3,
             fillColor: warnaUnit[d["Unit Kerja"]],
             color: "#000",
-            weight: 0.3, // <<< FIX TIPIS BANGET
+            weight: 0.3,
             fillOpacity: 0.9
         }).bindPopup(`
             <b>Nama:</b> ${d.Nama}<br>
@@ -305,16 +293,13 @@ function tampilkanData(){
     updateChart(dataFilter);
 }
 
-// ================= FILTER EVENT =================
+// FILTER
 document.getElementById("filterUnit").onchange = tampilkanData;
 
-// ================= SEARCH =================
+// SEARCH
 function cariNama(){
-
     let val = document.getElementById("searchNama").value.toLowerCase();
-
     let found = markers.find(m => m.nama.includes(val));
-
     if(found){
         map.setView(found.latlng, 16);
         found.openPopup();
@@ -323,20 +308,17 @@ function cariNama(){
     }
 }
 
-// ================= RESET =================
+// RESET
 function resetFilter(){
-
     selectedKabupaten = null;
     document.getElementById("filterUnit").value = "all";
     document.getElementById("searchNama").value = "";
     document.getElementById("infoKab").innerHTML = "-";
-
     tampilkanData();
-
     map.setView([-6.9, 107.6], 10);
 }
 
-// ================= CHART =================
+// CHART (FIX DI SINI)
 function updateChart(data){
 
     if(chartUnit) chartUnit.destroy();
@@ -358,7 +340,11 @@ function updateChart(data){
             }]
         },
         options: {
-            plugins: { legend: { position: 'bottom' } },
+            plugins: {
+                legend: {
+                    display: false   // <<< INI YANG MENGHILANGKAN TAMPILAN YANG KAMU MAKSUD
+                }
+            },
             cutout: '50%'
         }
     });
