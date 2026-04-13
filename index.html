@@ -44,13 +44,8 @@
             overflow-y: auto;
         }
 
-        .panel canvas {
-            max-height: 150px;
-        }
-
         select, input, button {
             width: 100%;
-            box-sizing: border-box;
             padding: 6px;
             margin-top: 4px;
         }
@@ -63,12 +58,20 @@
             cursor: pointer;
         }
 
-        button:hover {
-            background: #1a5edb;
-        }
-
         .top-unit {
             font-size: 12px;
+            margin-top: 5px;
+        }
+
+        /* Legend collapsible */
+        .legend-header {
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .legend-content {
+            display: none;
             margin-top: 5px;
         }
 
@@ -106,7 +109,6 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
     <b>Cari Nama</b><br>
     <input type="text" id="searchNama" placeholder="Masukkan Nama">
     <button onclick="cariNama()">Cari</button>
-
     <button onclick="resetFilter()">Reset Filter</button>
 
     <hr>
@@ -123,8 +125,9 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 
     <hr>
 
-    <b>Legend Unit</b>
-    <div id="legendUnit"></div>
+    <!-- Legend -->
+    <div class="legend-header" onclick="toggleLegend()">Legend Unit ▼</div>
+    <div id="legendUnit" class="legend-content"></div>
 
     <hr>
 
@@ -158,7 +161,6 @@ var allData = [];
 var markers = [];
 var warnaUnit = {};
 var chartUnit;
-var selectedKabupaten = null;
 
 // ================= FIX ANGKA =================
 function fixNumber(val){
@@ -203,6 +205,12 @@ fetch("pegawai.geojson")
 
     tampilkanData("all");
 });
+
+// ================= TOGGLE LEGEND =================
+function toggleLegend(){
+    var el = document.getElementById("legendUnit");
+    el.style.display = (el.style.display === "block") ? "none" : "block";
+}
 
 // ================= POLYGON =================
 fetch("Jawa Barattt.geojson")
@@ -298,11 +306,6 @@ function tampilkanData(filter){
     document.getElementById("totalPegawai").innerHTML = dataFilter.length;
     updateChart(dataFilter);
 }
-
-// ================= FILTER =================
-document.getElementById("filterUnit").onchange = function(){
-    tampilkanData(this.value);
-};
 
 // ================= SEARCH =================
 function cariNama(){
