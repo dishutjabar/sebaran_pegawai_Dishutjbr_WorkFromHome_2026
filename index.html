@@ -5,11 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- Chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
@@ -33,17 +30,40 @@
             left: 10px;
             bottom: 10px;
             background: white;
-            padding: 10px;
+            padding: 12px;
             z-index: 1000;
-            border-radius: 8px;
-            width: 300px;
+            border-radius: 10px;
+            width: 260px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
 
-        .marker {
-            border-radius: 50%;
+        .panel canvas {
+            max-height: 150px;
+        }
+
+        .legend {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .legend-color {
             width: 12px;
             height: 12px;
-            border: 2px solid white;
+            margin-right: 6px;
         }
     </style>
 </head>
@@ -81,43 +101,39 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
     <canvas id="chartJabatan"></canvas>
 </div>
 
+<div class="legend" id="legend"></div>
+
 <script>
 // ================= MAP =================
 var map = L.map('map').setView([-6.9, 107.6], 10);
-
-var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-osm.addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 // ================= GLOBAL =================
 var geojsonLayer;
 var markers = [];
 var allData = [];
 var warnaUnit = {};
+var chartUnit;
 
-// ================= GENERATE WARNA OTOMATIS =================
+// ================= COLOR =================
 function getRandomColor() {
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// ================= LOAD DATA =================
+// ================= LOAD =================
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
 
     allData = data.features.map(f => f.properties);
-
-    // TOTAL PEGAWAI
     document.getElementById("totalPegawai").innerHTML = allData.length;
 
-    // Ambil unit unik
-    var unitUnik = [...new Set(allData.map(d => d.unit))];
+    var unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
 
-    // Assign warna otomatis
     unitUnik.forEach(u => {
         warnaUnit[u] = getRandomColor();
     });
 
-    // Isi dropdown
     var select = document.getElementById("filterUnit");
     unitUnik.forEach(u => {
         var opt = document.createElement("option");
@@ -126,11 +142,27 @@ fetch("pegawai.geojson")
         select.appendChild(opt);
     });
 
+    buatLegenda(unitUnik);
     tampilkanData("all");
     buatChart();
 });
 
-// ================= TAMPILKAN DATA =================
+// ================= LEGENDA =================
+function buatLegenda(list){
+    var el = document.getElementById("legend");
+    el.innerHTML = "<b>Legenda Unit</b><br>";
+
+    list.forEach(u => {
+        el.innerHTML += `
+            <div class="legend-item">
+                <div class="legend-color" style="background:${warnaUnit[u]}"></div>
+                ${u}
+            </div>
+        `;
+    });
+}
+
+// ================= MAP =================
 function tampilkanData(filter){
 
     if(geojsonLayer) map.removeLayer(geojsonLayer);
@@ -144,27 +176,24 @@ function tampilkanData(filter){
             pointToLayer: function(feature, latlng){
 
                 var d = feature.properties;
+                var unit = d["Unit Kerja"];
 
-                if(filter === "all" || d.unit === filter){
-
-                    var warna = warnaUnit[d.unit];
+                if(filter === "all" || unit === filter){
 
                     var marker = L.circleMarker(latlng, {
-                        radius: 5,
-                        fillColor: warna,
+                        radius: 1,
+                        fillColor: warnaUnit[unit],
                         color: "#000",
                         weight: 1,
                         fillOpacity: 0.9
                     }).bindPopup(`
                         <b>Nama:</b> ${d.Nama}<br>
-                        <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
-                        <b>Nama Jabatan:</b> ${d["Nama Jabatan"]}<br>
+                        <b>Unit:</b> ${unit}<br>
+                        <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
                         <b>Alamat:</b> ${d["Alamat Rumah"]}
                     `);
 
                     marker.nip = d.nip;
-                    marker.unit = d.unit;
-
                     markers.push(marker);
                     return marker;
                 }
@@ -191,21 +220,22 @@ function cariNIP(){
     });
 }
 
-// ================= STATISTIK =================
-function hitungStatistik(field){
+// ================= STAT =================
+function hitungStatistik(){
     let result = {};
     allData.forEach(d => {
-        result[d[field]] = (result[d[field]] || 0) + 1;
+        let key = d["Unit Kerja"];
+        result[key] = (result[key] || 0) + 1;
     });
     return result;
 }
 
+// ================= CHART =================
 function buatChart(){
 
-    // ================= UNIT PIE =================
-    var unitStat = hitungStatistik("unit");
+    var unitStat = hitungStatistik();
 
-    new Chart(document.getElementById("chartUnit"), {
+    chartUnit = new Chart(document.getElementById("chartUnit"), {
         type: 'pie',
         data: {
             labels: Object.keys(unitStat),
@@ -213,34 +243,49 @@ function buatChart(){
                 data: Object.values(unitStat),
                 backgroundColor: Object.keys(unitStat).map(u => warnaUnit[u])
             }]
+        },
+        options: {
+            plugins: { legend: { position: 'bottom' } },
+            onClick: (evt, elements) => {
+                if(elements.length > 0){
+                    var i = elements[0].index;
+                    var unit = chartUnit.data.labels[i];
+
+                    document.getElementById("filterUnit").value = unit;
+                    tampilkanData(unit);
+                }
+            }
         }
     });
 
-    // ================= JABATAN PIE =================
-    var jabatanStat = hitungStatistik("jabatan");
+    // Jabatan
+    var jab = {};
+    allData.forEach(d => {
+        let j = d["Nama Jabatan"];
+        jab[j] = (jab[j] || 0) + 1;
+    });
 
     new Chart(document.getElementById("chartJabatan"), {
         type: 'pie',
         data: {
-            labels: Object.keys(jabatanStat),
+            labels: Object.keys(jab),
             datasets: [{
-                data: Object.values(jabatanStat),
-                backgroundColor: Object.values(jabatanStat).map(() => getRandomColor())
+                data: Object.values(jab),
+                backgroundColor: Object.values(jab).map(() => getRandomColor())
             }]
+        },
+        options: {
+            plugins: { legend: { position: 'bottom' } }
         }
     });
 }
 
-// ================= BATAS ADMIN =================
+// ================= BATAS =================
 fetch("Jawa Barat.geojson")
 .then(res => res.json())
 .then(data => {
     L.geoJSON(data, {
-        style: {
-            color: "black",
-            weight: 1,
-            fillOpacity: 0
-        }
+        style: { color: "black", weight: 0.5, fillOpacity: 0 }
     }).addTo(map);
 });
 
