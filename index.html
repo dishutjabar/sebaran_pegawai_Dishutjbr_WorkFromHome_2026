@@ -19,6 +19,7 @@
         body { margin: 0; font-family: Arial; }
         #map { height: 100vh; }
 
+        /* JUDUL NORMAL (SEPERTI AWAL) */
         .title {
             position: absolute;
             top: 10px;
@@ -26,13 +27,12 @@
             transform: translateX(-50%);
             background: white;
             padding: 10px 20px;
+            font-weight: bold;
+            font-size: 16px;
             border-radius: 8px;
             z-index: 1000;
-            font-size: 13px;
-            font-weight: normal;
         }
 
-        /* PANEL */
         .panel {
             position: absolute;
             left: 10px;
@@ -45,8 +45,6 @@
             overflow-y: auto;
             z-index: 1000;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-
-            /* SAMAKAN SEMUA TEKS */
             font-size: 13px;
         }
 
@@ -54,7 +52,7 @@
 
         .section-title {
             font-size: 13px;
-            font-weight: normal; /* hilangkan bold biar seragam */
+            font-weight: normal;
             margin-bottom: 6px;
         }
 
@@ -76,42 +74,12 @@
 
         button:hover { background: #1a5edb; }
 
-        #topUnit { display: none; }
-
+        /* PIE BULAT */
         #chartUnit {
-            height: 140px !important; /* diperbesar biar ga kepotong */
+            width: 100% !important;
+            height: 220px !important;
         }
 
-        /* LEGEND FLOAT */
-        #legendFloating {
-            position: absolute;
-            bottom: 20px;
-            right: 10px;
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            width: 200px;
-            max-height: 250px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            font-size: 12px;
-        }
-
-        #legendContent { display: none; }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin-top: 3px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            margin-right: 6px;
-            border: 1px solid #000;
-        }
     </style>
 </head>
 <body>
@@ -119,13 +87,6 @@
 <div class="title">Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026</div>
 <div id="map"></div>
 
-<!-- LEGEND -->
-<div id="legendFloating">
-    <b onclick="toggleLegend()">Legend ▼</b>
-    <div id="legendContent"></div>
-</div>
-
-<!-- PANEL -->
 <div class="panel">
 
     <div class="section">
@@ -145,7 +106,6 @@
     <div class="section">
         <div class="section-title">Total Pegawai</div>
         <div id="totalPegawai">0</div>
-        <div id="topUnit"></div>
     </div>
 
     <div class="section">
@@ -164,11 +124,8 @@
 
 // BASEMAP
 var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-
 var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
-
 var satelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-
 var terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
 
 // MAP
@@ -215,24 +172,10 @@ fetch("pegawai.geojson")
         select.appendChild(opt);
     });
 
-    let legendDiv = document.getElementById("legendContent");
-    Object.keys(warnaUnit).forEach(u => {
-        legendDiv.innerHTML += `
-            <div class="legend-item">
-                <div class="legend-color" style="background:${warnaUnit[u]}"></div>
-                ${u}
-            </div>`;
-    });
-
     tampilkanData();
 });
 
-function toggleLegend(){
-    let el = document.getElementById("legendContent");
-    el.style.display = el.style.display === "block" ? "none" : "block";
-}
-
-// LOAD KABUPATEN
+// KABUPATEN
 fetch("Jawa Barattt.geojson")
 .then(res => res.json())
 .then(data => {
@@ -248,7 +191,7 @@ fetch("Jawa Barattt.geojson")
 
             layer.on("click", function(){
                 selectedKabupaten = feature;
-                document.getElementById("infoKab").innerHTML = `${nama}`;
+                document.getElementById("infoKab").innerHTML = `<b>${nama}</b>`;
                 tampilkanData();
                 map.fitBounds(layer.getBounds());
             });
@@ -303,10 +246,10 @@ function tampilkanData(){
             weight: 0.3,
             fillOpacity: 0.9
         }).bindPopup(`
-            Nama: ${d.Nama}<br>
-            Unit: ${d["Unit Kerja"]}<br>
-            Jabatan: ${d["Nama Jabatan"]}<br>
-            Alamat: ${d["Alamat Rumah"]}
+            <b>Nama:</b> ${d.Nama}<br>
+            <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
+            <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
+            <b>Alamat:</b> ${d["Alamat Rumah"]}
         `);
 
         marker.nama = (d.Nama || "").toLowerCase();
@@ -368,25 +311,22 @@ function updateChart(data){
             }]
         },
         options: {
-            maintainAspectRatio: false,
+            responsive: true,
+            maintainAspectRatio: true,
             plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom',
-                    labels: {
-                        boxWidth: 10,
-                        font: { size: 10 } /* kecil biar muat */
-                    }
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
-                            return context.label + ": " + context.raw;
+                        title: function(context){
+                            return context[0].label;
+                        },
+                        label: function(context){
+                            return "Jumlah: " + context.raw;
                         }
                     }
                 }
             },
-            cutout: '50%'
+            cutout: '60%'
         }
     });
 }
