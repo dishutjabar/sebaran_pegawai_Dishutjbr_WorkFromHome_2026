@@ -54,7 +54,7 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 <div id="map"></div>
 
 <div class="panel">
-    <b>Filter Unit</b><br>
+    <b>Filter Unit Kerja</b><br>
     <select id="filterUnit">
         <option value="all">Semua</option>
     </select>
@@ -72,7 +72,7 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 
     <hr>
 
-    <b>Statistik Unit</b>
+    <b>Statistik Unit Kerja</b>
     <canvas id="chartUnit"></canvas>
 
     <b>Statistik Jabatan</b>
@@ -91,6 +91,11 @@ var allData = [];
 var warnaUnit = {};
 var chartUnit, chartJabatan;
 
+// ================= FIX ANGKA =================
+function fixNumber(val){
+    return parseFloat(String(val).replace(",", "."));
+}
+
 // ================= COLOR =================
 function getRandomColor() {
     return '#' + Math.floor(Math.random()*16777215).toString(16);
@@ -105,6 +110,7 @@ fetch("pegawai.geojson")
 
     document.getElementById("totalPegawai").innerHTML = allData.length;
 
+    // 🔥 AMBIL UNIT LANGSUNG DARI GEOJSON
     var unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
 
     unitUnik.forEach(u => warnaUnit[u] = getRandomColor());
@@ -126,53 +132,48 @@ function tampilkanData(filter){
     if(geojsonLayer) map.removeLayer(geojsonLayer);
     markers = [];
 
-    fetch("pegawai.geojson")
-    .then(res => res.json())
-    .then(data => {
+    geojsonLayer = L.layerGroup();
 
-        geojsonLayer = L.layerGroup();
-        let dataFilter = [];
+    let dataFilter = [];
 
-        data.features.forEach(feature => {
+    allData.forEach(d => {
 
-            var d = feature.properties;
-            var unit = d["Unit Kerja"];
+        var unit = d["Unit Kerja"];
 
-            if(filter === "all" || unit === filter){
+        if(filter === "all" || unit === filter){
 
-                let lat = parseFloat(d["Koordinat Rumah (Latitude)"]);
-                let lon = parseFloat(d["Koordinat Rumah (Longitude)"]);
+            let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
+            let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
 
-                if(isNaN(lat) || isNaN(lon)) return;
+            if(isNaN(lat) || isNaN(lon)) return;
 
-                var marker = L.circleMarker([lat, lon], {
-                    radius: 1,
-                    fillColor: warnaUnit[unit],
-                    color: "#000",
-                    weight: 1,
-                    fillOpacity: 0.9
-                }).bindPopup(`
-                    <b>Nama:</b> ${d.Nama}<br>
-                    <b>Unit:</b> ${unit}<br>
-                    <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
-                    <b>Alamat:</b> ${d["Alamat Rumah"]}
-                `);
+            var marker = L.circleMarker([lat, lon], {
+                radius: 1,
+                fillColor: warnaUnit[unit],
+                color: "#000",
+                weight: 1,
+                fillOpacity: 0.9
+            }).bindPopup(`
+                <b>Nama:</b> ${d.Nama}<br>
+                <b>Unit Kerja:</b> ${unit}<br>
+                <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
+                <b>Alamat:</b> ${d["Alamat Rumah"]}
+            `);
 
-                marker.nip = d.nip;
+            marker.nip = d.nip;
 
-                markers.push(marker);
-                geojsonLayer.addLayer(marker);
-                dataFilter.push(d);
-            }
+            markers.push(marker);
+            geojsonLayer.addLayer(marker);
+            dataFilter.push(d);
+        }
 
-        });
-
-        geojsonLayer.addTo(map);
-
-        document.getElementById("totalPegawai").innerHTML = dataFilter.length;
-
-        updateChart(dataFilter, filter);
     });
+
+    geojsonLayer.addTo(map);
+
+    document.getElementById("totalPegawai").innerHTML = dataFilter.length;
+
+    updateChart(dataFilter);
 }
 
 // ================= FILTER =================
@@ -192,8 +193,8 @@ function cariNIP(){
     });
 }
 
-// ================= STATISTIK + KLIK PIE =================
-function updateChart(data, currentFilter){
+// ================= STATISTIK =================
+function updateChart(data){
 
     if(chartUnit) chartUnit.destroy();
     if(chartJabatan) chartJabatan.destroy();
@@ -202,14 +203,14 @@ function updateChart(data, currentFilter){
     let statJabatan = {};
 
     data.forEach(d => {
+
         let u = d["Unit Kerja"];
         let j = d["Nama Jabatan"];
 
-        statUnit[u] = (statUnit[u] || 0) + 1;
-        statJabatan[j] = (statJabatan[j] || 0) + 1;
+        if(u) statUnit[u] = (statUnit[u] || 0) + 1;
+        if(j) statJabatan[j] = (statJabatan[j] || 0) + 1;
     });
 
-    // ===== UNIT PIE =====
     chartUnit = new Chart(document.getElementById("chartUnit"), {
         type: 'pie',
         data: {
@@ -221,19 +222,20 @@ function updateChart(data, currentFilter){
         },
         options: {
             plugins: { legend: { position: 'bottom' } },
-            onClick: (evt, elements) => {
-                if(elements.length > 0){
-                    let i = elements[0].index;
-                    let unitDipilih = chartUnit.data.labels[i];
 
-                    document.getElementById("filterUnit").value = unitDipilih;
-                    tampilkanData(unitDipilih);
+            // 🔥 KLIK PIE → FILTER MAP
+            onClick: (evt, el) => {
+                if(el.length > 0){
+                    let i = el[0].index;
+                    let unit = chartUnit.data.labels[i];
+
+                    document.getElementById("filterUnit").value = unit;
+                    tampilkanData(unit);
                 }
             }
         }
     });
 
-    // ===== JABATAN PIE =====
     chartJabatan = new Chart(document.getElementById("chartJabatan"), {
         type: 'pie',
         data: {
@@ -242,9 +244,6 @@ function updateChart(data, currentFilter){
                 data: Object.values(statJabatan),
                 backgroundColor: Object.values(statJabatan).map(() => getRandomColor())
             }]
-        },
-        options: {
-            plugins: { legend: { position: 'bottom' } }
         }
     });
 }
