@@ -70,7 +70,6 @@
             height: 220px !important;
         }
 
-        /* LEGEND FLOAT */
         #legendFloating {
             position: absolute;
             bottom: 20px;
@@ -101,7 +100,6 @@
             border: 1px solid #000;
         }
 
-        /* CUSTOM TOOLTIP */
         #chartTooltip {
             position: absolute;
             background: rgba(0,0,0,0.8);
@@ -110,8 +108,7 @@
             border-radius: 6px;
             font-size: 12px;
             pointer-events: none;
-            white-space: normal;
-            max-width: 250px;
+            max-width: 260px;
             display: none;
             z-index: 2000;
         }
@@ -165,7 +162,6 @@ const tooltipEl = document.getElementById("chartTooltip");
 
 function externalTooltip(context) {
     const tooltip = context.tooltip;
-
     if (tooltip.opacity === 0) {
         tooltipEl.style.display = "none";
         return;
@@ -177,9 +173,9 @@ function externalTooltip(context) {
     tooltipEl.innerHTML = `<b>${label}</b><br>Jumlah: ${value}`;
     tooltipEl.style.display = "block";
 
-    const position = context.chart.canvas.getBoundingClientRect();
-    tooltipEl.style.left = position.left + window.pageXOffset + tooltip.caretX + "px";
-    tooltipEl.style.top = position.top + window.pageYOffset + tooltip.caretY + "px";
+    const pos = context.chart.canvas.getBoundingClientRect();
+    tooltipEl.style.left = pos.left + window.pageXOffset + tooltip.caretX + "px";
+    tooltipEl.style.top = pos.top + window.pageYOffset + tooltip.caretY + "px";
 }
 
 // BASEMAP
@@ -191,7 +187,8 @@ var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Wor
 var map = L.map('map', { center: [-6.9,107.6], zoom: 10, layers: [osm] });
 
 var markersLayer = L.layerGroup().addTo(map);
-var allData = [], markers = [], warnaUnit = {}, chartUnit, selectedKabupaten=null;
+var allData = [], markers = [], warnaUnit = {}, chartUnit;
+var selectedKabupaten = null;
 
 function getRandomColor(){ return '#' + Math.floor(Math.random()*16777215).toString(16); }
 function fixNumber(val){ return parseFloat(String(val).replace(",", ".")); }
@@ -201,20 +198,21 @@ function toggleLegend(){
     el.style.display = el.style.display === "block" ? "none" : "block";
 }
 
-// DATA
+// LOAD DATA
 fetch("pegawai.geojson").then(r=>r.json()).then(data=>{
     allData = data.features.map(f=>f.properties);
     document.getElementById("totalPegawai").innerHTML = allData.length;
 
     let unitUnik = [...new Set(allData.map(d=>d["Unit Kerja"]))];
-    unitUnik.forEach(u=>warnaUnit[u]=getRandomColor());
-
     let select = document.getElementById("filterUnit");
     let legendDiv = document.getElementById("legendContent");
 
     unitUnik.forEach(u=>{
+        warnaUnit[u]=getRandomColor();
+
         let opt=document.createElement("option");
-        opt.value=u; opt.innerHTML=u;
+        opt.value=u;
+        opt.innerHTML=u;
         select.appendChild(opt);
 
         legendDiv.innerHTML += `
@@ -227,18 +225,23 @@ fetch("pegawai.geojson").then(r=>r.json()).then(data=>{
     tampilkanData();
 });
 
-// KABUPATEN
+// LOAD KABUPATEN (FIX DI SINI)
 fetch("Jawa Barattt.geojson").then(r=>r.json()).then(data=>{
-    let layerKab = L.geoJSON(data,{style:{color:"#333",weight:1,fillOpacity:0.1},
-    onEachFeature:(f,l)=>{
-        let nama=f.properties.KAB_KOTA;
-        l.bindPopup(`<b>Kabupaten:</b> ${nama}`);
-        l.on("click",()=>{
-            selectedKabupaten=f;
-            document.getElementById("infoKab").innerHTML=`<b>${nama}</b>`;
-            tampilkanData();
-        });
-    }}).addTo(map);
+    let layerKab = L.geoJSON(data,{
+        style:{color:"#333",weight:1,fillOpacity:0.1},
+        onEachFeature:(feature,layer)=>{
+            let nama = feature.properties.KAB_KOTA;
+
+            layer.bindPopup(`<b>Kabupaten:</b> ${nama}<br><i>Klik untuk filter</i>`);
+
+            layer.on("click",()=>{
+                selectedKabupaten = feature.geometry; // 🔥 FIX PENTING
+                document.getElementById("infoKab").innerHTML=`<b>${nama}</b>`;
+                tampilkanData();
+                map.fitBounds(layer.getBounds());
+            });
+        }
+    }).addTo(map);
 
     L.control.layers({
         "OSM": osm,
@@ -251,8 +254,9 @@ fetch("Jawa Barattt.geojson").then(r=>r.json()).then(data=>{
     }).addTo(map);
 });
 
-// TAMPIL DATA
+// TAMPIL DATA (FIX FILTER SPASIAL)
 function tampilkanData(){
+
     markersLayer.clearLayers();
     markers=[];
 
@@ -261,8 +265,16 @@ function tampilkanData(){
     let dataFilter=allData.filter(d=>{
         let lat=fixNumber(d["Koordinat Rumah (Latitude)"]);
         let lon=fixNumber(d["Koordinat Rumah (Longitude)"]);
+
         if(isNaN(lat)||isNaN(lon)) return false;
         if(unit!=="all" && d["Unit Kerja"]!==unit) return false;
+
+        // 🔥 FILTER SPASIAL FIX
+        if(selectedKabupaten){
+            let pt = turf.point([lon, lat]);
+            if(!turf.booleanPointInPolygon(pt, selectedKabupaten)) return false;
+        }
+
         return true;
     });
 
@@ -294,7 +306,7 @@ function tampilkanData(){
     updateChart(dataFilter);
 }
 
-// CHART FIX TOTAL
+// CHART
 function updateChart(data){
     if(chartUnit) chartUnit.destroy();
 
@@ -329,6 +341,7 @@ function updateChart(data){
     });
 }
 
+// EVENT
 document.getElementById("filterUnit").onchange=tampilkanData;
 
 function cariNama(){
