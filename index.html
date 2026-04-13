@@ -12,7 +12,7 @@
     <!-- Chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- TURF (WAJIB UNTUK FILTER POLYGON) -->
+    <!-- Turf -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
     <style>
@@ -40,6 +40,8 @@
             z-index: 1000;
             border-radius: 10px;
             width: 260px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .panel canvas {
@@ -69,6 +71,20 @@
             font-size: 12px;
             margin-top: 5px;
         }
+
+        .legend-item {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            margin-top: 3px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            margin-right: 6px;
+            border: 1px solid #000;
+        }
     </style>
 </head>
 <body>
@@ -91,12 +107,24 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
     <input type="text" id="searchNama" placeholder="Masukkan Nama">
     <button onclick="cariNama()">Cari</button>
 
+    <button onclick="resetFilter()">Reset Filter</button>
+
     <hr>
 
     <b>Total Pegawai:</b>
     <div id="totalPegawai">0</div>
 
     <div class="top-unit" id="topUnit"></div>
+
+    <hr>
+
+    <b>Info Kabupaten</b>
+    <div id="infoKab">-</div>
+
+    <hr>
+
+    <b>Legend Unit</b>
+    <div id="legendUnit"></div>
 
     <hr>
 
@@ -130,6 +158,7 @@ var allData = [];
 var markers = [];
 var warnaUnit = {};
 var chartUnit;
+var selectedKabupaten = null;
 
 // ================= FIX ANGKA =================
 function fixNumber(val){
@@ -142,7 +171,7 @@ function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// ================= LOAD DATA PEGAWAI =================
+// ================= LOAD DATA =================
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
@@ -161,34 +190,46 @@ fetch("pegawai.geojson")
         select.appendChild(opt);
     });
 
+    // LEGEND
+    var legendDiv = document.getElementById("legendUnit");
+    Object.keys(warnaUnit).forEach(u => {
+        legendDiv.innerHTML += `
+            <div class="legend-item">
+                <div class="legend-color" style="background:${warnaUnit[u]}"></div>
+                ${u}
+            </div>
+        `;
+    });
+
     tampilkanData("all");
 });
 
-// ================= LOAD POLYGON KABUPATEN =================
+// ================= POLYGON =================
 fetch("Jawa Barattt.geojson")
 .then(res => res.json())
 .then(data => {
 
     layerKabupaten = L.geoJSON(data, {
-        style: function(feature){
-            return {
-                color: "#333",
-                weight: 1,
-                fillOpacity: 0.1
-            };
-        },
+        style: () => ({
+            color: "#333",
+            weight: 1,
+            fillOpacity: 0.1
+        }),
 
         onEachFeature: function(feature, layer){
 
             let namaKab = feature.properties.KAB_KOTA;
 
-            layer.bindPopup(
-                "<b>Kabupaten/Kota:</b> " + namaKab + "<br><i>Klik untuk filter</i>"
-            );
+            layer.bindPopup(`<b>Kabupaten/Kota:</b> ${namaKab}<br><i>Klik untuk filter</i>`);
 
             layer.on("click", function(){
 
-                markersLayer.clearLayers();
+                layerKabupaten.eachLayer(l => layerKabupaten.resetStyle(l));
+
+                layer.setStyle({
+                    fillColor: "yellow",
+                    fillOpacity: 0.4
+                });
 
                 let dataFilter = allData.filter(d => {
 
@@ -203,20 +244,18 @@ fetch("Jawa Barattt.geojson")
 
                 tampilkanDataKabupaten(dataFilter, namaKab);
 
-                // zoom ke kabupaten
+                document.getElementById("infoKab").innerHTML =
+                    `<b>${namaKab}</b><br>Jumlah Pegawai: ${dataFilter.length}`;
+
                 map.fitBounds(layer.getBounds());
             });
         }
-    });
+    }).addTo(map);
 
-    layerKabupaten.addTo(map);
-
-    var overlayMaps = {
+    L.control.layers(baseMaps, {
         "Batas Kabupaten": layerKabupaten,
         "Lokasi Pegawai": markersLayer
-    };
-
-    L.control.layers(baseMaps, overlayMaps).addTo(map);
+    }).addTo(map);
 });
 
 // ================= TAMPILKAN DATA =================
@@ -225,9 +264,9 @@ function tampilkanData(filter){
     markersLayer.clearLayers();
     markers = [];
 
-    let dataFilter = allData.filter(d => {
-        return filter === "all" || d["Unit Kerja"] === filter;
-    });
+    let dataFilter = allData.filter(d =>
+        filter === "all" || d["Unit Kerja"] === filter
+    );
 
     dataFilter.forEach(d => {
 
@@ -257,7 +296,6 @@ function tampilkanData(filter){
     });
 
     document.getElementById("totalPegawai").innerHTML = dataFilter.length;
-
     updateChart(dataFilter);
 }
 
@@ -270,17 +308,35 @@ document.getElementById("filterUnit").onchange = function(){
 function cariNama(){
     var val = document.getElementById("searchNama").value.toLowerCase().trim();
 
-    var found = markers.find(m => m.nama.includes(val));
+    var results = markers.filter(m => m.nama.includes(val));
 
-    if(found){
-        map.setView(found.latlng, 16);
-        found.openPopup();
+    if(results.length > 0){
+        let group = [];
+        results.forEach(m => {
+            m.openPopup();
+            group.push(m.getLatLng());
+        });
+        map.fitBounds(group);
     } else {
         alert("Nama tidak ditemukan");
     }
 }
 
-// ================= FILTER KABUPATEN =================
+// ================= RESET =================
+function resetFilter(){
+    tampilkanData("all");
+    document.getElementById("filterUnit").value = "all";
+    document.getElementById("searchNama").value = "";
+    document.getElementById("infoKab").innerHTML = "-";
+
+    if(layerKabupaten){
+        layerKabupaten.eachLayer(l => layerKabupaten.resetStyle(l));
+    }
+
+    map.setView([-6.9, 107.6], 10);
+}
+
+// ================= FILTER KAB =================
 function tampilkanDataKabupaten(dataFilter, namaKab){
 
     markersLayer.clearLayers();
@@ -315,7 +371,6 @@ function tampilkanDataKabupaten(dataFilter, namaKab){
     });
 
     document.getElementById("totalPegawai").innerHTML = dataFilter.length;
-
     updateChart(dataFilter);
 }
 
@@ -347,17 +402,8 @@ function updateChart(data){
             }]
         },
         options: {
-            plugins: {
-                legend: { position: 'bottom' }
-            },
-            cutout: '50%',
-            onClick: (evt, el) => {
-                if(el.length > 0){
-                    let unit = chartUnit.data.labels[el[0].index];
-                    document.getElementById("filterUnit").value = unit;
-                    tampilkanData(unit);
-                }
-            }
+            plugins: { legend: { position: 'bottom' } },
+            cutout: '50%'
         }
     });
 }
