@@ -26,11 +26,13 @@
             transform: translateX(-50%);
             background: white;
             padding: 10px 20px;
-            font-weight: bold;
             border-radius: 8px;
             z-index: 1000;
+            font-size: 13px;
+            font-weight: normal;
         }
 
+        /* PANEL */
         .panel {
             position: absolute;
             left: 10px;
@@ -44,16 +46,16 @@
             z-index: 1000;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 
-            /* ✅ SAMAKAN SEMUA TEKS */
+            /* SAMAKAN SEMUA TEKS */
             font-size: 13px;
         }
 
         .section { margin-bottom: 15px; }
 
         .section-title {
-            font-weight: bold;
-            margin-bottom: 6px;
             font-size: 13px;
+            font-weight: normal; /* hilangkan bold biar seragam */
+            margin-bottom: 6px;
         }
 
         select, input, button {
@@ -62,11 +64,6 @@
             margin-top: 5px;
             border-radius: 6px;
             border: 1px solid #ccc;
-            font-size: 13px;
-        }
-
-        #totalPegawai,
-        #infoKab {
             font-size: 13px;
         }
 
@@ -81,9 +78,8 @@
 
         #topUnit { display: none; }
 
-        /* ⚠️ TIDAK DIUBAH (SESUAI PERMINTAANMU) */
         #chartUnit {
-            max-height: 130px;
+            height: 140px !important; /* diperbesar biar ga kepotong */
         }
 
         /* LEGEND FLOAT */
@@ -166,9 +162,21 @@
 
 <script>
 
+// BASEMAP
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+
+var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
+
+var satelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+
+var terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
+
 // MAP
-var map = L.map('map').setView([-6.9, 107.6], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+var map = L.map('map', {
+    center: [-6.9, 107.6],
+    zoom: 10,
+    layers: [osm]
+});
 
 // GLOBAL
 var markersLayer = L.layerGroup().addTo(map);
@@ -240,14 +248,19 @@ fetch("Jawa Barattt.geojson")
 
             layer.on("click", function(){
                 selectedKabupaten = feature;
-                document.getElementById("infoKab").innerHTML = `<b>${nama}</b>`;
+                document.getElementById("infoKab").innerHTML = `${nama}`;
                 tampilkanData();
                 map.fitBounds(layer.getBounds());
             });
         }
     }).addTo(map);
 
-    L.control.layers({}, {
+    L.control.layers({
+        "OSM": osm,
+        "Satelit": satelit,
+        "Terrain": terrain,
+        "ESRI": esri
+    }, {
         "Batas Kabupaten": layerKab,
         "Lokasi Pegawai": markersLayer
     }).addTo(map);
@@ -290,10 +303,10 @@ function tampilkanData(){
             weight: 0.3,
             fillOpacity: 0.9
         }).bindPopup(`
-            <b>Nama:</b> ${d.Nama}<br>
-            <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
-            <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
-            <b>Alamat:</b> ${d["Alamat Rumah"]}
+            Nama: ${d.Nama}<br>
+            Unit: ${d["Unit Kerja"]}<br>
+            Jabatan: ${d["Nama Jabatan"]}<br>
+            Alamat: ${d["Alamat Rumah"]}
         `);
 
         marker.nama = (d.Nama || "").toLowerCase();
@@ -362,24 +375,13 @@ function updateChart(data){
                     position: 'bottom',
                     labels: {
                         boxWidth: 10,
-                        font: {
-                            size: 10
-                        },
-                        /* ✅ WRAP TEXT BIAR TIDAK KEPOTONG */
-                        generateLabels: function(chart) {
-                            const data = chart.data;
-                            return data.labels.map(function(label, i) {
-                                let text = label;
-                                if (text.length > 25) {
-                                    text = text.substring(0, 25) + '...';
-                                }
-                                return {
-                                    text: text,
-                                    fillStyle: data.datasets[0].backgroundColor[i],
-                                    hidden: false,
-                                    index: i
-                                };
-                            });
+                        font: { size: 10 } /* kecil biar muat */
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ": " + context.raw;
                         }
                     }
                 }
