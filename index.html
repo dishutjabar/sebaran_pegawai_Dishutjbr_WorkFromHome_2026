@@ -5,8 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
@@ -39,31 +42,6 @@
 
         .panel canvas {
             max-height: 150px;
-        }
-
-        .legend {
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            z-index: 1000;
-            max-height: 300px;
-            overflow-y: auto;
-            font-size: 12px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 5px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            margin-right: 6px;
         }
     </style>
 </head>
@@ -101,8 +79,6 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
     <canvas id="chartJabatan"></canvas>
 </div>
 
-<div class="legend" id="legend"></div>
-
 <script>
 // ================= MAP =================
 var map = L.map('map').setView([-6.9, 107.6], 10);
@@ -113,26 +89,25 @@ var geojsonLayer;
 var markers = [];
 var allData = [];
 var warnaUnit = {};
-var chartUnit;
+var chartUnit, chartJabatan;
 
 // ================= COLOR =================
 function getRandomColor() {
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// ================= LOAD =================
+// ================= LOAD DATA =================
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
 
     allData = data.features.map(f => f.properties);
+
     document.getElementById("totalPegawai").innerHTML = allData.length;
 
     var unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
 
-    unitUnik.forEach(u => {
-        warnaUnit[u] = getRandomColor();
-    });
+    unitUnik.forEach(u => warnaUnit[u] = getRandomColor());
 
     var select = document.getElementById("filterUnit");
     unitUnik.forEach(u => {
@@ -142,27 +117,10 @@ fetch("pegawai.geojson")
         select.appendChild(opt);
     });
 
-    buatLegenda(unitUnik);
     tampilkanData("all");
-    buatChart();
 });
 
-// ================= LEGENDA =================
-function buatLegenda(list){
-    var el = document.getElementById("legend");
-    el.innerHTML = "<b>Legenda Unit</b><br>";
-
-    list.forEach(u => {
-        el.innerHTML += `
-            <div class="legend-item">
-                <div class="legend-color" style="background:${warnaUnit[u]}"></div>
-                ${u}
-            </div>
-        `;
-    });
-}
-
-// ================= MAP =================
+// ================= TAMPILKAN DATA =================
 function tampilkanData(filter){
 
     if(geojsonLayer) map.removeLayer(geojsonLayer);
@@ -172,34 +130,48 @@ function tampilkanData(filter){
     .then(res => res.json())
     .then(data => {
 
-        geojsonLayer = L.geoJSON(data, {
-            pointToLayer: function(feature, latlng){
+        geojsonLayer = L.layerGroup();
+        let dataFilter = [];
 
-                var d = feature.properties;
-                var unit = d["Unit Kerja"];
+        data.features.forEach(feature => {
 
-                if(filter === "all" || unit === filter){
+            var d = feature.properties;
+            var unit = d["Unit Kerja"];
 
-                    var marker = L.circleMarker(latlng, {
-                        radius: 1,
-                        fillColor: warnaUnit[unit],
-                        color: "#000",
-                        weight: 1,
-                        fillOpacity: 0.9
-                    }).bindPopup(`
-                        <b>Nama:</b> ${d.Nama}<br>
-                        <b>Unit:</b> ${unit}<br>
-                        <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
-                        <b>Alamat:</b> ${d["Alamat Rumah"]}
-                    `);
+            if(filter === "all" || unit === filter){
 
-                    marker.nip = d.nip;
-                    markers.push(marker);
-                    return marker;
-                }
+                let lat = parseFloat(d["Koordinat Rumah (Latitude)"]);
+                let lon = parseFloat(d["Koordinat Rumah (Longitude)"]);
+
+                if(isNaN(lat) || isNaN(lon)) return;
+
+                var marker = L.circleMarker([lat, lon], {
+                    radius: 1,
+                    fillColor: warnaUnit[unit],
+                    color: "#000",
+                    weight: 1,
+                    fillOpacity: 0.9
+                }).bindPopup(`
+                    <b>Nama:</b> ${d.Nama}<br>
+                    <b>Unit:</b> ${unit}<br>
+                    <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
+                    <b>Alamat:</b> ${d["Alamat Rumah"]}
+                `);
+
+                marker.nip = d.nip;
+
+                markers.push(marker);
+                geojsonLayer.addLayer(marker);
+                dataFilter.push(d);
             }
-        }).addTo(map);
 
+        });
+
+        geojsonLayer.addTo(map);
+
+        document.getElementById("totalPegawai").innerHTML = dataFilter.length;
+
+        updateChart(dataFilter, filter);
     });
 }
 
@@ -220,58 +192,55 @@ function cariNIP(){
     });
 }
 
-// ================= STAT =================
-function hitungStatistik(){
-    let result = {};
-    allData.forEach(d => {
-        let key = d["Unit Kerja"];
-        result[key] = (result[key] || 0) + 1;
+// ================= STATISTIK + KLIK PIE =================
+function updateChart(data, currentFilter){
+
+    if(chartUnit) chartUnit.destroy();
+    if(chartJabatan) chartJabatan.destroy();
+
+    let statUnit = {};
+    let statJabatan = {};
+
+    data.forEach(d => {
+        let u = d["Unit Kerja"];
+        let j = d["Nama Jabatan"];
+
+        statUnit[u] = (statUnit[u] || 0) + 1;
+        statJabatan[j] = (statJabatan[j] || 0) + 1;
     });
-    return result;
-}
 
-// ================= CHART =================
-function buatChart(){
-
-    var unitStat = hitungStatistik();
-
+    // ===== UNIT PIE =====
     chartUnit = new Chart(document.getElementById("chartUnit"), {
         type: 'pie',
         data: {
-            labels: Object.keys(unitStat),
+            labels: Object.keys(statUnit),
             datasets: [{
-                data: Object.values(unitStat),
-                backgroundColor: Object.keys(unitStat).map(u => warnaUnit[u])
+                data: Object.values(statUnit),
+                backgroundColor: Object.keys(statUnit).map(u => warnaUnit[u])
             }]
         },
         options: {
             plugins: { legend: { position: 'bottom' } },
             onClick: (evt, elements) => {
                 if(elements.length > 0){
-                    var i = elements[0].index;
-                    var unit = chartUnit.data.labels[i];
+                    let i = elements[0].index;
+                    let unitDipilih = chartUnit.data.labels[i];
 
-                    document.getElementById("filterUnit").value = unit;
-                    tampilkanData(unit);
+                    document.getElementById("filterUnit").value = unitDipilih;
+                    tampilkanData(unitDipilih);
                 }
             }
         }
     });
 
-    // Jabatan
-    var jab = {};
-    allData.forEach(d => {
-        let j = d["Nama Jabatan"];
-        jab[j] = (jab[j] || 0) + 1;
-    });
-
-    new Chart(document.getElementById("chartJabatan"), {
+    // ===== JABATAN PIE =====
+    chartJabatan = new Chart(document.getElementById("chartJabatan"), {
         type: 'pie',
         data: {
-            labels: Object.keys(jab),
+            labels: Object.keys(statJabatan),
             datasets: [{
-                data: Object.values(jab),
-                backgroundColor: Object.values(jab).map(() => getRandomColor())
+                data: Object.values(statJabatan),
+                backgroundColor: Object.values(statJabatan).map(() => getRandomColor())
             }]
         },
         options: {
@@ -280,15 +249,18 @@ function buatChart(){
     });
 }
 
-// ================= BATAS =================
+// ================= BATAS ADMIN =================
 fetch("Jawa Barat.geojson")
 .then(res => res.json())
 .then(data => {
     L.geoJSON(data, {
-        style: { color: "black", weight: 0.5, fillOpacity: 0 }
+        style: {
+            color: "black",
+            weight: 0.5,
+            fillOpacity: 0
+        }
     }).addTo(map);
 });
-
 </script>
 
 </body>
