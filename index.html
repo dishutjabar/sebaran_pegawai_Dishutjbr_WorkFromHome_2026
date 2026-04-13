@@ -63,20 +63,31 @@
             margin-top: 5px;
         }
 
-        /* Legend collapsible */
-        .legend-header {
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 5px;
+        /* LEGEND FLOATING */
+        #legendFloating {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+            width: 200px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 12px;
         }
 
-        .legend-content {
+        #legendFloating b {
+            cursor: pointer;
+        }
+
+        #legendContent {
             display: none;
             margin-top: 5px;
         }
 
         .legend-item {
-            font-size: 12px;
             display: flex;
             align-items: center;
             margin-top: 3px;
@@ -97,6 +108,12 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 </div>
 
 <div id="map"></div>
+
+<!-- LEGEND FLOATING -->
+<div id="legendFloating">
+    <b onclick="toggleLegend()">Legend ▼</b>
+    <div id="legendContent"></div>
+</div>
 
 <div class="panel">
     <b>Filter Unit Kerja</b><br>
@@ -125,12 +142,6 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 
     <hr>
 
-    <!-- Legend -->
-    <div class="legend-header" onclick="toggleLegend()">Legend Unit ▼</div>
-    <div id="legendUnit" class="legend-content"></div>
-
-    <hr>
-
     <b>Statistik Unit Kerja</b>
     <canvas id="chartUnit"></canvas>
 </div>
@@ -141,18 +152,7 @@ var map = L.map('map').setView([-6.9, 107.6], 10);
 
 // ================= BASEMAP =================
 var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-var satellite = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png');
-var terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
-var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-
 osm.addTo(map);
-
-var baseMaps = {
-    "OpenStreetMap": osm,
-    "Satellite": satellite,
-    "Terrain": terrain,
-    "ESRI Satellite": esri
-};
 
 // ================= GLOBAL =================
 var markersLayer = L.layerGroup().addTo(map);
@@ -192,8 +192,8 @@ fetch("pegawai.geojson")
         select.appendChild(opt);
     });
 
-    // LEGEND
-    var legendDiv = document.getElementById("legendUnit");
+    // LEGEND FLOATING
+    var legendDiv = document.getElementById("legendContent");
     Object.keys(warnaUnit).forEach(u => {
         legendDiv.innerHTML += `
             <div class="legend-item">
@@ -208,7 +208,7 @@ fetch("pegawai.geojson")
 
 // ================= TOGGLE LEGEND =================
 function toggleLegend(){
-    var el = document.getElementById("legendUnit");
+    var el = document.getElementById("legendContent");
     el.style.display = (el.style.display === "block") ? "none" : "block";
 }
 
@@ -260,7 +260,7 @@ fetch("Jawa Barattt.geojson")
         }
     }).addTo(map);
 
-    L.control.layers(baseMaps, {
+    L.control.layers({}, {
         "Batas Kabupaten": layerKabupaten,
         "Lokasi Pegawai": markersLayer
     }).addTo(map);
