@@ -113,15 +113,16 @@ var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Wor
 
 osm.addTo(map);
 
-L.control.layers({
+var baseMaps = {
     "OpenStreetMap": osm,
     "Satellite": satellite,
     "Terrain": terrain,
     "ESRI Satellite": esri
-}).addTo(map);
+};
 
 // ================= GLOBAL =================
 var markersLayer = L.layerGroup().addTo(map);
+var layerKabupaten;
 var allData = [];
 var markers = [];
 var warnaUnit = {};
@@ -138,7 +139,7 @@ function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// ================= LOAD =================
+// ================= LOAD DATA PEGAWAI =================
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
@@ -160,7 +161,37 @@ fetch("pegawai.geojson")
     tampilkanData("all");
 });
 
-// ================= TAMPILKAN =================
+// ================= LOAD POLYGON KABUPATEN =================
+fetch("Jawa Barattt.geojson")
+.then(res => res.json())
+.then(data => {
+
+    layerKabupaten = L.geoJSON(data, {
+        style: function(feature){
+            return {
+                color: "#333",
+                weight: 1,
+                fillOpacity: 0.1
+            };
+        },
+        onEachFeature: function(feature, layer){
+            layer.bindPopup(
+                "<b>Kabupaten/Kota:</b> " + feature.properties.KAB_KOTA
+            );
+        }
+    });
+
+    layerKabupaten.addTo(map);
+
+    var overlayMaps = {
+        "Batas Kabupaten": layerKabupaten,
+        "Lokasi Pegawai": markersLayer
+    };
+
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+});
+
+// ================= TAMPILKAN DATA =================
 function tampilkanData(filter){
 
     markersLayer.clearLayers();
@@ -207,7 +238,7 @@ document.getElementById("filterUnit").onchange = function(){
     tampilkanData(this.value);
 };
 
-// ================= SEARCH NAMA =================
+// ================= SEARCH =================
 function cariNama(){
     var val = document.getElementById("searchNama").value.toLowerCase().trim();
 
@@ -221,7 +252,7 @@ function cariNama(){
     }
 }
 
-// ================= STATISTIK =================
+// ================= CHART =================
 function updateChart(data){
 
     if(chartUnit) chartUnit.destroy();
@@ -233,7 +264,6 @@ function updateChart(data){
         if(u) statUnit[u] = (statUnit[u] || 0) + 1;
     });
 
-    // 🔥 TOP UNIT
     let sorted = Object.entries(statUnit).sort((a,b)=>b[1]-a[1]);
     if(sorted.length > 0){
         document.getElementById("topUnit").innerHTML =
@@ -264,19 +294,6 @@ function updateChart(data){
         }
     });
 }
-
-// ================= BATAS =================
-fetch("Jawa Barat.geojson")
-.then(res => res.json())
-.then(data => {
-    L.geoJSON(data, {
-        style: {
-            color: "black",
-            weight: 0.5,
-            fillOpacity: 0
-        }
-    }).addTo(map);
-});
 </script>
 
 </body>
