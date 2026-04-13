@@ -19,7 +19,6 @@
         body { margin: 0; font-family: Arial; }
         #map { height: 100vh; }
 
-        /* JUDUL NORMAL (SEPERTI AWAL) */
         .title {
             position: absolute;
             top: 10px;
@@ -44,17 +43,12 @@
             max-height: 90vh;
             overflow-y: auto;
             z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             font-size: 13px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
         .section { margin-bottom: 15px; }
-
-        .section-title {
-            font-size: 13px;
-            font-weight: normal;
-            margin-bottom: 6px;
-        }
+        .section-title { font-size: 13px; margin-bottom: 6px; }
 
         select, input, button {
             width: 100%;
@@ -69,17 +63,58 @@
             background: #2c7be5;
             color: white;
             border: none;
-            cursor: pointer;
         }
 
-        button:hover { background: #1a5edb; }
-
-        /* PIE BULAT */
         #chartUnit {
             width: 100% !important;
             height: 220px !important;
         }
 
+        /* LEGEND FLOAT */
+        #legendFloating {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            width: 200px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 12px;
+        }
+
+        #legendContent { display: none; }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-top: 3px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            margin-right: 6px;
+            border: 1px solid #000;
+        }
+
+        /* CUSTOM TOOLTIP */
+        #chartTooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            white-space: normal;
+            max-width: 250px;
+            display: none;
+            z-index: 2000;
+        }
     </style>
 </head>
 <body>
@@ -87,18 +122,22 @@
 <div class="title">Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026</div>
 <div id="map"></div>
 
-<div class="panel">
+<div id="legendFloating">
+    <b onclick="toggleLegend()">Legend ▼</b>
+    <div id="legendContent"></div>
+</div>
 
+<div id="chartTooltip"></div>
+
+<div class="panel">
     <div class="section">
         <div class="section-title">Filter Unit Kerja</div>
-        <select id="filterUnit">
-            <option value="all">Semua</option>
-        </select>
+        <select id="filterUnit"><option value="all">Semua</option></select>
     </div>
 
     <div class="section">
         <div class="section-title">Cari Nama</div>
-        <input type="text" id="searchNama" placeholder="Masukkan nama">
+        <input type="text" id="searchNama">
         <button onclick="cariNama()">Cari</button>
         <button onclick="resetFilter()">Reset</button>
     </div>
@@ -117,134 +156,126 @@
         <div class="section-title">Statistik Unit</div>
         <canvas id="chartUnit"></canvas>
     </div>
-
 </div>
 
 <script>
 
+// TOOLTIP CUSTOM
+const tooltipEl = document.getElementById("chartTooltip");
+
+function externalTooltip(context) {
+    const tooltip = context.tooltip;
+
+    if (tooltip.opacity === 0) {
+        tooltipEl.style.display = "none";
+        return;
+    }
+
+    const label = tooltip.dataPoints[0].label;
+    const value = tooltip.dataPoints[0].raw;
+
+    tooltipEl.innerHTML = `<b>${label}</b><br>Jumlah: ${value}`;
+    tooltipEl.style.display = "block";
+
+    const position = context.chart.canvas.getBoundingClientRect();
+    tooltipEl.style.left = position.left + window.pageXOffset + tooltip.caretX + "px";
+    tooltipEl.style.top = position.top + window.pageYOffset + tooltip.caretY + "px";
+}
+
 // BASEMAP
 var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
 var satelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 var terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
+var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
 
-// MAP
-var map = L.map('map', {
-    center: [-6.9, 107.6],
-    zoom: 10,
-    layers: [osm]
-});
+var map = L.map('map', { center: [-6.9,107.6], zoom: 10, layers: [osm] });
 
-// GLOBAL
 var markersLayer = L.layerGroup().addTo(map);
-var allData = [];
-var markers = [];
-var warnaUnit = {};
-var chartUnit;
-var selectedKabupaten = null;
+var allData = [], markers = [], warnaUnit = {}, chartUnit, selectedKabupaten=null;
 
-function fixNumber(val){
-    if(!val) return NaN;
-    return parseFloat(String(val).replace(",", "."));
+function getRandomColor(){ return '#' + Math.floor(Math.random()*16777215).toString(16); }
+function fixNumber(val){ return parseFloat(String(val).replace(",", ".")); }
+
+function toggleLegend(){
+    let el = document.getElementById("legendContent");
+    el.style.display = el.style.display === "block" ? "none" : "block";
 }
 
-function getRandomColor(){
-    return '#' + Math.floor(Math.random()*16777215).toString(16);
-}
-
-// LOAD DATA
-fetch("pegawai.geojson")
-.then(res => res.json())
-.then(data => {
-
-    allData = data.features.map(f => f.properties);
+// DATA
+fetch("pegawai.geojson").then(r=>r.json()).then(data=>{
+    allData = data.features.map(f=>f.properties);
     document.getElementById("totalPegawai").innerHTML = allData.length;
 
-    let unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
-
-    unitUnik.forEach(u => warnaUnit[u] = getRandomColor());
+    let unitUnik = [...new Set(allData.map(d=>d["Unit Kerja"]))];
+    unitUnik.forEach(u=>warnaUnit[u]=getRandomColor());
 
     let select = document.getElementById("filterUnit");
-    unitUnik.forEach(u => {
-        let opt = document.createElement("option");
-        opt.value = u;
-        opt.innerHTML = u;
+    let legendDiv = document.getElementById("legendContent");
+
+    unitUnik.forEach(u=>{
+        let opt=document.createElement("option");
+        opt.value=u; opt.innerHTML=u;
         select.appendChild(opt);
+
+        legendDiv.innerHTML += `
+        <div class="legend-item">
+            <div class="legend-color" style="background:${warnaUnit[u]}"></div>
+            ${u}
+        </div>`;
     });
 
     tampilkanData();
 });
 
 // KABUPATEN
-fetch("Jawa Barattt.geojson")
-.then(res => res.json())
-.then(data => {
-
-    var layerKab = L.geoJSON(data, {
-        style: { color:"#333", weight:1, fillOpacity:0.1 },
-
-        onEachFeature: function(feature, layer){
-
-            let nama = feature.properties.KAB_KOTA;
-
-            layer.bindPopup(`<b>Kabupaten:</b> ${nama}<br><i>Klik untuk filter</i>`);
-
-            layer.on("click", function(){
-                selectedKabupaten = feature;
-                document.getElementById("infoKab").innerHTML = `<b>${nama}</b>`;
-                tampilkanData();
-                map.fitBounds(layer.getBounds());
-            });
-        }
-    }).addTo(map);
+fetch("Jawa Barattt.geojson").then(r=>r.json()).then(data=>{
+    let layerKab = L.geoJSON(data,{style:{color:"#333",weight:1,fillOpacity:0.1},
+    onEachFeature:(f,l)=>{
+        let nama=f.properties.KAB_KOTA;
+        l.bindPopup(`<b>Kabupaten:</b> ${nama}`);
+        l.on("click",()=>{
+            selectedKabupaten=f;
+            document.getElementById("infoKab").innerHTML=`<b>${nama}</b>`;
+            tampilkanData();
+        });
+    }}).addTo(map);
 
     L.control.layers({
         "OSM": osm,
         "Satelit": satelit,
         "Terrain": terrain,
         "ESRI": esri
-    }, {
-        "Batas Kabupaten": layerKab,
-        "Lokasi Pegawai": markersLayer
+    },{
+        "Kabupaten": layerKab,
+        "Pegawai": markersLayer
     }).addTo(map);
 });
 
-// TAMPILKAN DATA
+// TAMPIL DATA
 function tampilkanData(){
-
     markersLayer.clearLayers();
-    markers = [];
+    markers=[];
 
-    let unit = document.getElementById("filterUnit").value;
+    let unit=document.getElementById("filterUnit").value;
 
-    let dataFilter = allData.filter(d => {
-
-        let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
-        let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
-
-        if(isNaN(lat) || isNaN(lon)) return false;
-
-        if(unit !== "all" && d["Unit Kerja"] !== unit) return false;
-
-        if(selectedKabupaten){
-            let pt = turf.point([lon, lat]);
-            if(!turf.booleanPointInPolygon(pt, selectedKabupaten)) return false;
-        }
-
+    let dataFilter=allData.filter(d=>{
+        let lat=fixNumber(d["Koordinat Rumah (Latitude)"]);
+        let lon=fixNumber(d["Koordinat Rumah (Longitude)"]);
+        if(isNaN(lat)||isNaN(lon)) return false;
+        if(unit!=="all" && d["Unit Kerja"]!==unit) return false;
         return true;
     });
 
-    dataFilter.forEach(d => {
+    dataFilter.forEach(d=>{
+        let lat=fixNumber(d["Koordinat Rumah (Latitude)"]);
+        let lon=fixNumber(d["Koordinat Rumah (Longitude)"]);
 
-        let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
-        let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
-
-        let marker = L.circleMarker([lat, lon], {
-            radius: 3,
-            fillColor: warnaUnit[d["Unit Kerja"]],
-            color: "#000",
-            weight: 0.3,
-            fillOpacity: 0.9
+        let marker=L.circleMarker([lat,lon],{
+            radius:3,
+            fillColor:warnaUnit[d["Unit Kerja"]],
+            color:"#000",
+            weight:0.3,
+            fillOpacity:0.9
         }).bindPopup(`
             <b>Nama:</b> ${d.Nama}<br>
             <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
@@ -252,83 +283,70 @@ function tampilkanData(){
             <b>Alamat:</b> ${d["Alamat Rumah"]}
         `);
 
-        marker.nama = (d.Nama || "").toLowerCase();
-        marker.latlng = [lat, lon];
+        marker.nama=(d.Nama||"").toLowerCase();
+        marker.latlng=[lat,lon];
 
         markers.push(marker);
         markersLayer.addLayer(marker);
     });
 
-    document.getElementById("totalPegawai").innerHTML = dataFilter.length;
-
+    document.getElementById("totalPegawai").innerHTML=dataFilter.length;
     updateChart(dataFilter);
 }
 
-// FILTER
-document.getElementById("filterUnit").onchange = tampilkanData;
-
-// SEARCH
-function cariNama(){
-    let val = document.getElementById("searchNama").value.toLowerCase();
-    let found = markers.find(m => m.nama.includes(val));
-    if(found){
-        map.setView(found.latlng, 16);
-        found.openPopup();
-    } else {
-        alert("Nama tidak ditemukan");
-    }
-}
-
-// RESET
-function resetFilter(){
-    selectedKabupaten = null;
-    document.getElementById("filterUnit").value = "all";
-    document.getElementById("searchNama").value = "";
-    document.getElementById("infoKab").innerHTML = "-";
-    tampilkanData();
-    map.setView([-6.9, 107.6], 10);
-}
-
-// CHART
+// CHART FIX TOTAL
 function updateChart(data){
-
     if(chartUnit) chartUnit.destroy();
 
-    let stat = {};
-
-    data.forEach(d => {
-        let u = d["Unit Kerja"];
-        stat[u] = (stat[u] || 0) + 1;
+    let stat={};
+    data.forEach(d=>{
+        let u=d["Unit Kerja"];
+        stat[u]=(stat[u]||0)+1;
     });
 
-    chartUnit = new Chart(document.getElementById("chartUnit"), {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(stat),
-            datasets: [{
-                data: Object.values(stat),
-                backgroundColor: Object.keys(stat).map(u => warnaUnit[u])
+    chartUnit=new Chart(document.getElementById("chartUnit"),{
+        type:'doughnut',
+        data:{
+            labels:Object.keys(stat),
+            datasets:[{
+                data:Object.values(stat),
+                backgroundColor:Object.keys(stat).map(u=>warnaUnit[u]),
+                hoverOffset:10
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: function(context){
-                            return context[0].label;
-                        },
-                        label: function(context){
-                            return "Jumlah: " + context.raw;
-                        }
-                    }
+        options:{
+            responsive:true,
+            maintainAspectRatio:true,
+            plugins:{
+                legend:{display:false},
+                tooltip:{
+                    enabled:false,
+                    external: externalTooltip
                 }
             },
-            cutout: '60%'
+            cutout:'55%'
         }
     });
+}
+
+document.getElementById("filterUnit").onchange=tampilkanData;
+
+function cariNama(){
+    let val=document.getElementById("searchNama").value.toLowerCase();
+    let found=markers.find(m=>m.nama.includes(val));
+    if(found){
+        map.setView(found.latlng,16);
+        found.openPopup();
+    } else alert("Nama tidak ditemukan");
+}
+
+function resetFilter(){
+    selectedKabupaten=null;
+    document.getElementById("filterUnit").value="all";
+    document.getElementById("searchNama").value="";
+    document.getElementById("infoKab").innerHTML="-";
+    tampilkanData();
+    map.setView([-6.9,107.6],10);
 }
 
 </script>
