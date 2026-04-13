@@ -43,7 +43,6 @@
             max-height: 150px;
         }
 
-        /* UI FIX AGAR RAPI */
         select, input, button {
             width: 100%;
             box-sizing: border-box;
@@ -61,6 +60,11 @@
 
         button:hover {
             background: #1a5edb;
+        }
+
+        .top-unit {
+            font-size: 12px;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -80,14 +84,16 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 
     <hr>
 
-    <b>Cari NIP</b><br>
-    <input type="text" id="searchNIP">
-    <button onclick="cariNIP()">Cari</button>
+    <b>Cari Nama</b><br>
+    <input type="text" id="searchNama" placeholder="Masukkan Nama">
+    <button onclick="cariNama()">Cari</button>
 
     <hr>
 
     <b>Total Pegawai:</b>
     <div id="totalPegawai">0</div>
+
+    <div class="top-unit" id="topUnit"></div>
 
     <hr>
 
@@ -101,26 +107,18 @@ var map = L.map('map').setView([-6.9, 107.6], 10);
 
 // ================= BASEMAP =================
 var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-
 var satellite = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png');
-
 var terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
-
-// 🔥 ESRI SATELLITE (REAL)
-var esri = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-);
+var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
 osm.addTo(map);
 
-var baseMaps = {
+L.control.layers({
     "OpenStreetMap": osm,
     "Satellite": satellite,
     "Terrain": terrain,
     "ESRI Satellite": esri
-};
-
-L.control.layers(baseMaps).addTo(map);
+}).addTo(map);
 
 // ================= GLOBAL =================
 var markersLayer = L.layerGroup().addTo(map);
@@ -140,17 +138,15 @@ function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// ================= LOAD DATA =================
+// ================= LOAD =================
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
 
     allData = data.features.map(f => f.properties);
-
     document.getElementById("totalPegawai").innerHTML = allData.length;
 
     var unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
-
     unitUnik.forEach(u => warnaUnit[u] = getRandomColor());
 
     var select = document.getElementById("filterUnit");
@@ -194,11 +190,7 @@ function tampilkanData(filter){
             <b>Alamat:</b> ${d["Alamat Rumah"]}
         `);
 
-        // 🔥 SUPER FIX NIP
-        marker.nip = String(d["NIP"] || d["NIP "] || "")
-                        .replace(/\s/g, "")
-                        .trim();
-
+        marker.nama = (d.Nama || "").toLowerCase();
         marker.latlng = [lat, lon];
 
         markers.push(marker);
@@ -215,23 +207,17 @@ document.getElementById("filterUnit").onchange = function(){
     tampilkanData(this.value);
 };
 
-// ================= SEARCH =================
-function cariNIP(){
-    var val = document.getElementById("searchNIP").value
-                .toString()
-                .replace(/\s/g, "")
-                .trim();
+// ================= SEARCH NAMA =================
+function cariNama(){
+    var val = document.getElementById("searchNama").value.toLowerCase().trim();
 
-    var found = markers.find(m => m.nip == val);
+    var found = markers.find(m => m.nama.includes(val));
 
     if(found){
         map.setView(found.latlng, 16);
         found.openPopup();
     } else {
-        alert("NIP tidak ditemukan");
-
-        console.log("Input:", val);
-        console.log("Data NIP:", markers.map(m => m.nip));
+        alert("Nama tidak ditemukan");
     }
 }
 
@@ -247,8 +233,15 @@ function updateChart(data){
         if(u) statUnit[u] = (statUnit[u] || 0) + 1;
     });
 
+    // 🔥 TOP UNIT
+    let sorted = Object.entries(statUnit).sort((a,b)=>b[1]-a[1]);
+    if(sorted.length > 0){
+        document.getElementById("topUnit").innerHTML =
+            "Unit terbanyak: <b>" + sorted[0][0] + "</b> (" + sorted[0][1] + ")";
+    }
+
     chartUnit = new Chart(document.getElementById("chartUnit"), {
-        type: 'pie',
+        type: 'doughnut',
         data: {
             labels: Object.keys(statUnit),
             datasets: [{
@@ -260,6 +253,7 @@ function updateChart(data){
             plugins: {
                 legend: { position: 'bottom' }
             },
+            cutout: '50%',
             onClick: (evt, el) => {
                 if(el.length > 0){
                     let unit = chartUnit.data.labels[el[0].index];
@@ -271,7 +265,7 @@ function updateChart(data){
     });
 }
 
-// ================= BATAS ADMIN =================
+// ================= BATAS =================
 fetch("Jawa Barat.geojson")
 .then(res => res.json())
 .then(data => {
