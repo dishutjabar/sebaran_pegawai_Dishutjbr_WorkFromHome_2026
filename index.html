@@ -12,57 +12,25 @@
     <!-- Chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Turf (AUTO KABUPATEN) -->
+    <!-- Turf -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
     <style>
         body { margin: 0; font-family: Arial; }
         #map { height: 100vh; }
-
         .title {
-            position: absolute;
-            top: 10px;
-            left: 50%;
+            position: absolute; top: 10px; left: 50%;
             transform: translateX(-50%);
-            background: white;
-            padding: 10px 20px;
-            font-weight: bold;
-            z-index: 1000;
-            border-radius: 8px;
+            background: white; padding: 10px 20px;
+            font-weight: bold; z-index: 1000; border-radius: 8px;
         }
-
         .panel {
-            position: absolute;
-            left: 10px;
-            bottom: 10px;
-            background: white;
-            padding: 12px;
-            z-index: 1000;
-            border-radius: 10px;
-            width: 260px;
+            position: absolute; left: 10px; bottom: 10px;
+            background: white; padding: 12px;
+            z-index: 1000; border-radius: 10px; width: 260px;
         }
-
-        .panel canvas { max-height: 150px; }
-
-        select, input, button {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 6px;
-            margin-top: 4px;
-        }
-
-        button {
-            background: #2c7be5;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .top-unit {
-            font-size: 12px;
-            margin-top: 5px;
-        }
+        select, input, button { width: 100%; padding: 6px; margin-top: 4px; }
+        button { background: #2c7be5; color: white; border: none; border-radius: 6px; }
     </style>
 </head>
 <body>
@@ -74,23 +42,18 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 <div id="map"></div>
 
 <div class="panel">
-    <b>Filter Unit Kerja</b><br>
-    <select id="filterUnit">
-        <option value="all">Semua</option>
-    </select>
+    <b>Filter Unit Kerja</b>
+    <select id="filterUnit"><option value="all">Semua</option></select>
 
     <hr>
 
-    <b>Filter Kabupaten</b><br>
-    <select id="filterKabupaten">
-        <option value="all">Semua</option>
-    </select>
+    <b>Filter Kabupaten</b>
+    <select id="filterKabupaten"><option value="all">Semua</option></select>
 
-    <div id="listKabupaten" style="max-height:120px; overflow:auto; font-size:12px;"></div>
+    <div id="listKabupaten" style="max-height:120px; overflow:auto;"></div>
 
     <hr>
 
-    <b>Cari Nama</b><br>
     <input type="text" id="searchNama" placeholder="Masukkan Nama">
     <button onclick="cariNama()">Cari</button>
 
@@ -99,11 +62,6 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
     <b>Total Pegawai:</b>
     <div id="totalPegawai">0</div>
 
-    <div class="top-unit" id="topUnit"></div>
-
-    <hr>
-
-    <b>Statistik Unit Kerja</b>
     <canvas id="chartUnit"></canvas>
 </div>
 
@@ -128,7 +86,6 @@ var baseMaps = {
 
 // ================= GLOBAL =================
 var markersLayer = L.layerGroup().addTo(map);
-var layerKabupaten;
 var allData = [];
 var markers = [];
 var warnaUnit = {};
@@ -139,13 +96,13 @@ var kabupatenLayers = {};
 var kabupatenAktif = new Set();
 var selectedKabupaten = "all";
 
-// ================= FIX ANGKA =================
+var kabupatenReady = false; // 🔥 FIX ASYNC
+
+// ================= HELPER =================
 function fixNumber(val){
     if(!val) return NaN;
     return parseFloat(String(val).replace(",", "."));
 }
-
-// ================= WARNA =================
 function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
@@ -157,44 +114,32 @@ fetch("Jawa Barattt.geojson")
 
     geoKabupaten = data;
 
-    layerKabupaten = L.geoJSON(data, {
-        style: function(){
-            return { color:"#333", weight:1, fillOpacity:0.1 };
-        },
+    var layerKabupaten = L.geoJSON(data, {
+        style: { color:"#333", weight:1, fillOpacity:0.1 },
         onEachFeature: function(feature, layer){
-
             let nama = feature.properties.KAB_KOTA;
-
             kabupatenLayers[nama] = layer;
             kabupatenAktif.add(nama);
-
-            layer.bindPopup("<b>Kabupaten/Kota:</b> " + nama);
+            layer.bindPopup(nama);
         }
     }).addTo(map);
 
-    // dropdown
-    var selectKab = document.getElementById("filterKabupaten");
     Object.keys(kabupatenLayers).forEach(k => {
-        var opt = document.createElement("option");
-        opt.value = k;
-        opt.innerHTML = k;
-        selectKab.appendChild(opt);
-    });
+        let opt = document.createElement("option");
+        opt.value = k; opt.innerHTML = k;
+        document.getElementById("filterKabupaten").appendChild(opt);
 
-    // checkbox
-    var listDiv = document.getElementById("listKabupaten");
-    Object.keys(kabupatenLayers).forEach(k => {
-        var div = document.createElement("div");
+        let div = document.createElement("div");
         div.innerHTML = `<input type="checkbox" checked onchange="toggleKab('${k}', this.checked)"> ${k}`;
-        listDiv.appendChild(div);
+        document.getElementById("listKabupaten").appendChild(div);
     });
 
-    // layer control (TIDAK DIUBAH, hanya dipastikan ada)
     L.control.layers(baseMaps, {
         "Batas Kabupaten": layerKabupaten,
         "Lokasi Pegawai": markersLayer
     }).addTo(map);
 
+    kabupatenReady = true; // ✅ tanda siap
 });
 
 // ================= LOAD PEGAWAI =================
@@ -202,44 +147,59 @@ fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
 
-    allData = data.features.map(f => f.properties);
-    document.getElementById("totalPegawai").innerHTML = allData.length;
+    function proses(){
 
-    // AUTO DETEK KABUPATEN
-    allData.forEach(d => {
+        allData = data.features.map(f => f.properties);
+        document.getElementById("totalPegawai").innerHTML = allData.length;
 
-        let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
-        let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
+        // 🔥 AUTO KABUPATEN
+        allData.forEach(d => {
 
-        if(isNaN(lat) || isNaN(lon)) return;
+            let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
+            let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
+            if(isNaN(lat) || isNaN(lon)) return;
 
-        let pt = turf.point([lon, lat]);
+            let pt = turf.point([lon, lat]);
 
-        for(let f of geoKabupaten.features){
-            if(turf.booleanPointInPolygon(pt, f)){
-                d.Kabupaten = f.properties.KAB_KOTA;
-                break;
+            for(let f of geoKabupaten.features){
+                if(turf.booleanPointInPolygon(pt, f)){
+                    d.Kabupaten = f.properties.KAB_KOTA;
+                    break;
+                }
             }
+        });
+
+        let unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
+        unitUnik.forEach(u => {
+            warnaUnit[u] = getRandomColor();
+            let opt = document.createElement("option");
+            opt.value = u; opt.innerHTML = u;
+            document.getElementById("filterUnit").appendChild(opt);
+        });
+
+        tampilkanData("all");
+    }
+
+    // 🔥 FIX: tunggu kabupaten siap
+    let cek = setInterval(()=>{
+        if(kabupatenReady){
+            clearInterval(cek);
+            proses();
         }
-    });
-
-    var unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
-    unitUnik.forEach(u => warnaUnit[u] = getRandomColor());
-
-    var select = document.getElementById("filterUnit");
-    unitUnik.forEach(u => {
-        var opt = document.createElement("option");
-        opt.value = u;
-        opt.innerHTML = u;
-        select.appendChild(opt);
-    });
-
-    tampilkanData("all");
+    },200);
 });
+
+// ================= FILTER =================
+document.getElementById("filterUnit").onchange = function(){
+    tampilkanData(this.value);
+};
+document.getElementById("filterKabupaten").onchange = function(){
+    selectedKabupaten = this.value;
+    tampilkanData(document.getElementById("filterUnit").value);
+};
 
 // ================= TOGGLE =================
 function toggleKab(nama, visible){
-
     if(visible){
         map.addLayer(kabupatenLayers[nama]);
         kabupatenAktif.add(nama);
@@ -247,48 +207,33 @@ function toggleKab(nama, visible){
         map.removeLayer(kabupatenLayers[nama]);
         kabupatenAktif.delete(nama);
     }
-
     tampilkanData(document.getElementById("filterUnit").value);
 }
 
-// ================= FILTER =================
-document.getElementById("filterUnit").onchange = function(){
-    tampilkanData(this.value);
-};
-
-document.getElementById("filterKabupaten").onchange = function(){
-    selectedKabupaten = this.value;
-    tampilkanData(document.getElementById("filterUnit").value);
-};
-
-// ================= TAMPILKAN DATA =================
+// ================= SHOW =================
 function tampilkanData(filter){
 
     markersLayer.clearLayers();
     markers = [];
 
     let dataFilter = allData.filter(d => {
-
-        let cocokUnit = (filter === "all" || d["Unit Kerja"] === filter);
-        let cocokKab = (selectedKabupaten === "all" || d.Kabupaten === selectedKabupaten);
-        let cocokCheck = kabupatenAktif.has(d.Kabupaten);
-
-        return cocokUnit && cocokKab && cocokCheck;
+        return (filter==="all"||d["Unit Kerja"]===filter)
+            && (selectedKabupaten==="all"||d.Kabupaten===selectedKabupaten)
+            && kabupatenAktif.has(d.Kabupaten);
     });
 
     dataFilter.forEach(d => {
 
         let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
         let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
-
         if(isNaN(lat) || isNaN(lon)) return;
 
-        let marker = L.circleMarker([lat, lon], {
-            radius: 3,
+        let m = L.circleMarker([lat, lon], {
+            radius:3,
             fillColor: warnaUnit[d["Unit Kerja"]],
-            color: "#000",
-            weight: 1,
-            fillOpacity: 0.9
+            color:"#000",
+            weight:1,
+            fillOpacity:0.9
         }).bindPopup(`
             <b>Nama:</b> ${d.Nama}<br>
             <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
@@ -297,51 +242,24 @@ function tampilkanData(filter){
             <b>Kabupaten:</b> ${d.Kabupaten || "-"}
         `);
 
-        marker.nama = (d.Nama || "").toLowerCase();
-        marker.latlng = [lat, lon];
+        m.nama = (d.Nama||"").toLowerCase();
+        m.latlng = [lat, lon];
 
-        markers.push(marker);
-        markersLayer.addLayer(marker);
+        markers.push(m);
+        markersLayer.addLayer(m);
     });
 
     document.getElementById("totalPegawai").innerHTML = dataFilter.length;
-    updateChart(dataFilter);
 }
 
 // ================= SEARCH =================
 function cariNama(){
-    var val = document.getElementById("searchNama").value.toLowerCase().trim();
-    var found = markers.find(m => m.nama.includes(val));
-
-    if(found){
-        map.setView(found.latlng, 16);
-        found.openPopup();
-    } else {
-        alert("Nama tidak ditemukan");
-    }
-}
-
-// ================= CHART =================
-function updateChart(data){
-
-    if(chartUnit) chartUnit.destroy();
-
-    let statUnit = {};
-    data.forEach(d => {
-        let u = d["Unit Kerja"];
-        if(u) statUnit[u] = (statUnit[u] || 0) + 1;
-    });
-
-    chartUnit = new Chart(document.getElementById("chartUnit"), {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(statUnit),
-            datasets: [{
-                data: Object.values(statUnit),
-                backgroundColor: Object.keys(statUnit).map(u => warnaUnit[u])
-            }]
-        }
-    });
+    let val = document.getElementById("searchNama").value.toLowerCase();
+    let f = markers.find(m => m.nama.includes(val));
+    if(f){
+        map.setView(f.latlng,16);
+        f.openPopup();
+    } else alert("Nama tidak ditemukan");
 }
 </script>
 
