@@ -12,6 +12,9 @@
     <!-- Chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- TURF (WAJIB UNTUK FILTER POLYGON) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
     <style>
         body { margin: 0; font-family: Arial; }
         #map { height: 100vh; }
@@ -174,10 +177,35 @@ fetch("Jawa Barattt.geojson")
                 fillOpacity: 0.1
             };
         },
+
         onEachFeature: function(feature, layer){
+
+            let namaKab = feature.properties.KAB_KOTA;
+
             layer.bindPopup(
-                "<b>Kabupaten/Kota:</b> " + feature.properties.KAB_KOTA
+                "<b>Kabupaten/Kota:</b> " + namaKab + "<br><i>Klik untuk filter</i>"
             );
+
+            layer.on("click", function(){
+
+                markersLayer.clearLayers();
+
+                let dataFilter = allData.filter(d => {
+
+                    let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
+                    let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
+
+                    if(isNaN(lat) || isNaN(lon)) return false;
+
+                    let point = turf.point([lon, lat]);
+                    return turf.booleanPointInPolygon(point, feature);
+                });
+
+                tampilkanDataKabupaten(dataFilter, namaKab);
+
+                // zoom ke kabupaten
+                map.fitBounds(layer.getBounds());
+            });
         }
     });
 
@@ -250,6 +278,45 @@ function cariNama(){
     } else {
         alert("Nama tidak ditemukan");
     }
+}
+
+// ================= FILTER KABUPATEN =================
+function tampilkanDataKabupaten(dataFilter, namaKab){
+
+    markersLayer.clearLayers();
+    markers = [];
+
+    dataFilter.forEach(d => {
+
+        let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
+        let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
+
+        if(isNaN(lat) || isNaN(lon)) return;
+
+        let marker = L.circleMarker([lat, lon], {
+            radius: 3,
+            fillColor: warnaUnit[d["Unit Kerja"]],
+            color: "#000",
+            weight: 1,
+            fillOpacity: 0.9
+        }).bindPopup(`
+            <b>Nama:</b> ${d.Nama}<br>
+            <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
+            <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
+            <b>Alamat:</b> ${d["Alamat Rumah"]}<br>
+            <b>Kabupaten:</b> ${namaKab}
+        `);
+
+        marker.nama = (d.Nama || "").toLowerCase();
+        marker.latlng = [lat, lon];
+
+        markers.push(marker);
+        markersLayer.addLayer(marker);
+    });
+
+    document.getElementById("totalPegawai").innerHTML = dataFilter.length;
+
+    updateChart(dataFilter);
 }
 
 // ================= CHART =================
