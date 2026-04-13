@@ -43,7 +43,7 @@
             max-height: 150px;
         }
 
-        /* FIX UI */
+        /* UI FIX AGAR RAPI */
         select, input, button {
             width: 100%;
             box-sizing: border-box;
@@ -101,15 +101,23 @@ var map = L.map('map').setView([-6.9, 107.6], 10);
 
 // ================= BASEMAP =================
 var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+
 var satellite = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png');
+
 var terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
+
+// 🔥 ESRI SATELLITE (REAL)
+var esri = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+);
 
 osm.addTo(map);
 
 var baseMaps = {
     "OpenStreetMap": osm,
     "Satellite": satellite,
-    "Terrain": terrain
+    "Terrain": terrain,
+    "ESRI Satellite": esri
 };
 
 L.control.layers(baseMaps).addTo(map);
@@ -186,8 +194,11 @@ function tampilkanData(filter){
             <b>Alamat:</b> ${d["Alamat Rumah"]}
         `);
 
-        // 🔥 FIX NIP DI SINI
-        marker.nip = (d["NIP"] || "").toString().trim();
+        // 🔥 SUPER FIX NIP
+        marker.nip = String(d["NIP"] || d["NIP "] || "")
+                        .replace(/\s/g, "")
+                        .trim();
+
         marker.latlng = [lat, lon];
 
         markers.push(marker);
@@ -206,15 +217,21 @@ document.getElementById("filterUnit").onchange = function(){
 
 // ================= SEARCH =================
 function cariNIP(){
-    var val = document.getElementById("searchNIP").value.toString().trim();
+    var val = document.getElementById("searchNIP").value
+                .toString()
+                .replace(/\s/g, "")
+                .trim();
 
-    var found = markers.find(m => m.nip === val);
+    var found = markers.find(m => m.nip == val);
 
     if(found){
         map.setView(found.latlng, 16);
         found.openPopup();
     } else {
         alert("NIP tidak ditemukan");
+
+        console.log("Input:", val);
+        console.log("Data NIP:", markers.map(m => m.nip));
     }
 }
 
