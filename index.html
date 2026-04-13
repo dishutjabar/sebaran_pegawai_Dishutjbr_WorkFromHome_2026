@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Peta Sebaran Lokasi Pegawai Dinas Kehutanan (WFH) 2026</title>
+    <title>Peta Sebaran Lokasi Pegawai Dinas Kehutanan Provinsi Jawa Barat (Work From Home) Tahun 2026</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -46,6 +46,7 @@
         }
 
         .section { margin-bottom: 15px; }
+
         .section-title {
             font-weight: bold;
             margin-bottom: 6px;
@@ -70,6 +71,12 @@
         button:hover { background: #1a5edb; }
 
         #topUnit { display: none; }
+
+        /* 🔥 FIX UKURAN CHART */
+        #chartUnit {
+            max-height: 140px;
+            margin-top: 10px;
+        }
 
         /* LEGEND FLOAT */
         #legendFloating {
@@ -105,16 +112,14 @@
 </head>
 <body>
 
-<div class="title">Peta Sebaran Pegawai Dinas Kehutanan (WFH) 2026</div>
+<div class="title">Peta Sebaran Lokasi Pegawai Dinas Kehutanan Provinsi Jawa Barat (Work From Home) Tahun 2026</div>
 <div id="map"></div>
 
-<!-- LEGEND -->
 <div id="legendFloating">
     <b onclick="toggleLegend()">Legend ▼</b>
     <div id="legendContent"></div>
 </div>
 
-<!-- PANEL -->
 <div class="panel">
 
     <div class="section">
@@ -172,7 +177,7 @@ function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
-// LOAD PEGAWAI
+// LOAD DATA
 fetch("pegawai.geojson")
 .then(res => res.json())
 .then(data => {
@@ -318,7 +323,7 @@ function resetFilter(){
     map.setView([-6.9, 107.6], 10);
 }
 
-// CHART (FIX DI SINI)
+// CHART (FIX FINAL)
 function updateChart(data){
 
     if(chartUnit) chartUnit.destroy();
@@ -340,12 +345,18 @@ function updateChart(data){
             }]
         },
         options: {
+            maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false   // <<< INI YANG MENGHILANGKAN TAMPILAN YANG KAMU MAKSUD
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    position: 'nearest'
                 }
             },
-            cutout: '50%'
+            layout: {
+                padding: 10
+            },
+            cutout: '60%'
         }
     });
 }
