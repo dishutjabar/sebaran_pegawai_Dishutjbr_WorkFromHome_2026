@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Peta Sebaran Lokasi Pegawai Dinas Kehutanan Provinsi Jawa Barat (Work From Home) Tahun 2026</title>
+    <title>Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -46,7 +46,6 @@
         }
 
         .section { margin-bottom: 15px; }
-
         .section-title {
             font-weight: bold;
             margin-bottom: 6px;
@@ -72,10 +71,9 @@
 
         #topUnit { display: none; }
 
-        /* 🔥 FIX UKURAN CHART */
+        /* CHART SIZE FIX */
         #chartUnit {
-            max-height: 140px;
-            margin-top: 10px;
+            max-height: 130px;
         }
 
         /* LEGEND FLOAT */
@@ -112,14 +110,16 @@
 </head>
 <body>
 
-<div class="title">Peta Sebaran Lokasi Pegawai Dinas Kehutanan Provinsi Jawa Barat (Work From Home) Tahun 2026</div>
+<div class="title">Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026</div>
 <div id="map"></div>
 
+<!-- LEGEND -->
 <div id="legendFloating">
     <b onclick="toggleLegend()">Legend ▼</b>
     <div id="legendContent"></div>
 </div>
 
+<!-- PANEL -->
 <div class="panel">
 
     <div class="section">
@@ -323,7 +323,7 @@ function resetFilter(){
     map.setView([-6.9, 107.6], 10);
 }
 
-// CHART (FIX FINAL)
+// CHART
 function updateChart(data){
 
     if(chartUnit) chartUnit.destroy();
@@ -346,17 +346,8 @@ function updateChart(data){
         },
         options: {
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    enabled: true,
-                    position: 'nearest'
-                }
-            },
-            layout: {
-                padding: 10
-            },
-            cutout: '60%'
+            plugins: { legend: { display: false } },
+            cutout: '50%'
         }
     });
 }
