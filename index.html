@@ -13,27 +13,15 @@
         body { margin: 0; font-family: Arial; }
         #map { height: 100vh; }
 
-        .title {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 10px 20px;
-            font-weight: bold;
-            z-index: 1000;
-            border-radius: 8px;
-        }
-
         .panel {
             position: absolute;
             left: 10px;
             bottom: 10px;
             background: white;
             padding: 12px;
-            z-index: 1000;
             border-radius: 10px;
             width: 260px;
+            z-index: 1000;
         }
 
         .panel canvas {
@@ -42,10 +30,6 @@
     </style>
 </head>
 <body>
-
-<div class="title">
-Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
-</div>
 
 <div id="map"></div>
 
@@ -57,12 +41,17 @@ Peta Sebaran Lokasi Pegawai Dinas Kehutanan (Work From Home) Tahun 2026
 
     <hr>
 
+    <b>Cari NIP</b><br>
+    <input type="text" id="searchNIP">
+    <button onclick="cariNIP()">Cari</button>
+
+    <hr>
+
     <b>Total Pegawai:</b>
     <div id="totalPegawai">0</div>
 
     <hr>
 
-    <b>Statistik Unit Kerja</b>
     <canvas id="chartUnit"></canvas>
 </div>
 
@@ -74,17 +63,18 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 // ================= GLOBAL =================
 var markersLayer = L.layerGroup().addTo(map);
 var allData = [];
+var markers = [];
 var warnaUnit = {};
 var chartUnit;
 
-// ================= FIX ANGKA =================
+// ================= FIX NUMBER =================
 function fixNumber(val){
-    if(val === null || val === undefined || val === "") return NaN;
+    if(!val) return NaN;
     return parseFloat(String(val).replace(",", "."));
 }
 
 // ================= COLOR =================
-function getRandomColor() {
+function getRandomColor(){
     return '#' + Math.floor(Math.random()*16777215).toString(16);
 }
 
@@ -95,15 +85,14 @@ fetch("pegawai.geojson")
 
     allData = data.features.map(f => f.properties);
 
-    document.getElementById("totalPegawai").innerHTML = allData.length;
+    // 🔥 warna dibuat SEKALI
+    let unitList = [...new Set(allData.map(d => d["Unit Kerja"]))];
+    unitList.forEach(u => warnaUnit[u] = getRandomColor());
 
-    var unitUnik = [...new Set(allData.map(d => d["Unit Kerja"]))];
-
-    unitUnik.forEach(u => warnaUnit[u] = getRandomColor());
-
-    var select = document.getElementById("filterUnit");
-    unitUnik.forEach(u => {
-        var opt = document.createElement("option");
+    // dropdown
+    let select = document.getElementById("filterUnit");
+    unitList.forEach(u => {
+        let opt = document.createElement("option");
         opt.value = u;
         opt.innerHTML = u;
         select.appendChild(opt);
@@ -116,6 +105,7 @@ fetch("pegawai.geojson")
 function tampilkanData(filter){
 
     markersLayer.clearLayers();
+    markers = [];
 
     let dataFilter = allData.filter(d => {
         return filter === "all" || d["Unit Kerja"] === filter;
@@ -126,25 +116,25 @@ function tampilkanData(filter){
         let lat = fixNumber(d["Koordinat Rumah (Latitude)"]);
         let lon = fixNumber(d["Koordinat Rumah (Longitude)"]);
 
-        // 🔥 PERBAIKAN UTAMA TITIK
         if(isNaN(lat) || isNaN(lon)) return;
 
         let marker = L.circleMarker([lat, lon], {
-            radius: 1,
+            radius: 2,
             fillColor: warnaUnit[d["Unit Kerja"]],
             color: "#000",
             weight: 1,
             fillOpacity: 0.9
-        });
-
-        // 🔥 PERBAIKAN POPUP
-        marker.bindPopup(`
-            <b>Nama:</b> ${d.Nama || "-"}<br>
-            <b>Unit Kerja:</b> ${d["Unit Kerja"] || "-"}<br>
-            <b>Jabatan:</b> ${d["Nama Jabatan"] || "-"}<br>
-            <b>Alamat:</b> ${d["Alamat Rumah"] || "-"}
+        }).bindPopup(`
+            <b>Nama:</b> ${d.Nama}<br>
+            <b>Unit Kerja:</b> ${d["Unit Kerja"]}<br>
+            <b>Jabatan:</b> ${d["Nama Jabatan"]}<br>
+            <b>Alamat:</b> ${d["Alamat Rumah"]}
         `);
 
+        marker.nip = d.nip;
+        marker.latlng = [lat, lon];
+
+        markers.push(marker);
         markersLayer.addLayer(marker);
     });
 
@@ -158,25 +148,39 @@ document.getElementById("filterUnit").onchange = function(){
     tampilkanData(this.value);
 };
 
-// ================= CHART =================
+// ================= SEARCH FIX =================
+function cariNIP(){
+    let val = document.getElementById("searchNIP").value;
+
+    let found = markers.find(m => m.nip == val);
+
+    if(found){
+        map.setView(found.latlng, 16);
+        found.openPopup();
+    } else {
+        alert("NIP tidak ditemukan");
+    }
+}
+
+// ================= CHART FIX =================
 function updateChart(data){
 
     if(chartUnit) chartUnit.destroy();
 
-    let statUnit = {};
+    let stat = {};
 
     data.forEach(d => {
         let u = d["Unit Kerja"];
-        if(u) statUnit[u] = (statUnit[u] || 0) + 1;
+        if(u) stat[u] = (stat[u] || 0) + 1;
     });
 
     chartUnit = new Chart(document.getElementById("chartUnit"), {
         type: 'pie',
         data: {
-            labels: Object.keys(statUnit),
+            labels: Object.keys(stat),
             datasets: [{
-                data: Object.values(statUnit),
-                backgroundColor: Object.keys(statUnit).map(u => warnaUnit[u])
+                data: Object.values(stat),
+                backgroundColor: Object.keys(stat).map(u => warnaUnit[u])
             }]
         },
         options: {
@@ -184,9 +188,7 @@ function updateChart(data){
 
             onClick: (evt, el) => {
                 if(el.length > 0){
-                    let i = el[0].index;
-                    let unit = chartUnit.data.labels[i];
-
+                    let unit = chartUnit.data.labels[el[0].index];
                     document.getElementById("filterUnit").value = unit;
                     tampilkanData(unit);
                 }
@@ -200,7 +202,7 @@ fetch("Jawa Barat.geojson")
 .then(res => res.json())
 .then(data => {
     L.geoJSON(data, {
-        style: { color: "black", weight: 0.5, fillOpacity: 0 }
+        style: { color: "black", weight: 1, fillOpacity: 0 }
     }).addTo(map);
 });
 </script>
