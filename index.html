@@ -69,7 +69,10 @@
 
         button:hover { background: #1a5edb; }
 
-        .top-unit { font-size: 12px; color: #555; }
+        /* SEMBUNYIKAN TOP UNIT */
+        #topUnit {
+            display: none;
+        }
 
         /* LEGEND FLOAT */
         #legendFloating {
@@ -134,7 +137,7 @@
     <div class="section">
         <div class="section-title">Total Pegawai</div>
         <div id="totalPegawai">0</div>
-        <div class="top-unit" id="topUnit"></div>
+        <div id="topUnit"></div>
     </div>
 
     <div class="section">
@@ -281,6 +284,7 @@ function tampilkanData(){
             radius: 3,
             fillColor: warnaUnit[d["Unit Kerja"]],
             color: "#000",
+            weight: 0.3, // <<< FIX TIPIS BANGET
             fillOpacity: 0.9
         }).bindPopup(`
             <b>Nama:</b> ${d.Nama}<br>
@@ -343,13 +347,6 @@ function updateChart(data){
         let u = d["Unit Kerja"];
         stat[u] = (stat[u] || 0) + 1;
     });
-
-    let sorted = Object.entries(stat).sort((a,b)=>b[1]-a[1]);
-
-    if(sorted.length > 0){
-        document.getElementById("topUnit").innerHTML =
-            "Unit terbanyak: <b>" + sorted[0][0] + "</b> (" + sorted[0][1] + ")";
-    }
 
     chartUnit = new Chart(document.getElementById("chartUnit"), {
         type: 'doughnut',
