@@ -156,6 +156,16 @@
 
 <script>
 
+// ===== RADIUS RESPONSIVE =====
+function getRadius(){
+    let w = window.innerWidth;
+
+    if(w <= 480) return 8;     // HP kecil
+    if(w <= 768) return 7;     // HP besar
+    if(w <= 1200) return 6;    // laptop
+    return 5;                  // desktop
+}
+
 // TOOLTIP CUSTOM
 const tooltipEl = document.getElementById("chartTooltip");
 
@@ -189,7 +199,7 @@ var markersLayer = L.layerGroup().addTo(map);
 var allData = [], markers = [], warnaUnit = {}, chartUnit;
 var selectedKabupaten = null;
 
-// ===== WARNA FIX (TIDAK BERUBAH) =====
+// WARNA FIX
 const colorPalette = [
 "#e41a1c","#377eb8","#4daf4a","#ff7f00",
 "#984ea3","#a65628","#f781bf","#999999",
@@ -288,7 +298,7 @@ function tampilkanData(){
         let lon=fixNumber(d["Koordinat Rumah (Longitude)"]);
 
         let marker=L.circleMarker([lat,lon],{
-            radius:3.5,
+            radius:getRadius(),
             fillColor:warnaUnit[d["Unit Kerja"]],
             color:"transparent",
             weight:0,
@@ -366,6 +376,9 @@ function resetFilter(){
     tampilkanData();
     map.setView([-6.9,107.6],10);
 }
+
+// RESPONSIVE UPDATE
+window.addEventListener("resize", tampilkanData);
 
 </script>
 
