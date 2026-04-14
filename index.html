@@ -97,7 +97,6 @@
             width: 12px;
             height: 12px;
             margin-right: 6px;
-            border: 1px solid #000;
         }
 
         #chartTooltip {
@@ -190,13 +189,13 @@ var markersLayer = L.layerGroup().addTo(map);
 var allData = [], markers = [], warnaUnit = {}, chartUnit;
 var selectedKabupaten = null;
 
-// ===== WARNA DIPERTEGAS =====
-function getRandomColor(){
-    let r = Math.floor(Math.random()*200);
-    let g = Math.floor(Math.random()*200);
-    let b = Math.floor(Math.random()*200);
-    return `rgb(${r},${g},${b})`;
-}
+// ===== WARNA FIX (TIDAK BERUBAH) =====
+const colorPalette = [
+"#e41a1c","#377eb8","#4daf4a","#ff7f00",
+"#984ea3","#a65628","#f781bf","#999999",
+"#66c2a5","#fc8d62","#8da0cb","#e78ac3",
+"#a6d854","#ffd92f","#e5c494","#b3b3b3"
+];
 
 function fixNumber(val){ return parseFloat(String(val).replace(",", ".")); }
 
@@ -214,8 +213,8 @@ fetch("pegawai.geojson").then(r=>r.json()).then(data=>{
     let select = document.getElementById("filterUnit");
     let legendDiv = document.getElementById("legendContent");
 
-    unitUnik.forEach(u=>{
-        warnaUnit[u]=getRandomColor();
+    unitUnik.forEach((u,i)=>{
+        warnaUnit[u]=colorPalette[i % colorPalette.length];
 
         let opt=document.createElement("option");
         opt.value=u;
@@ -291,8 +290,8 @@ function tampilkanData(){
         let marker=L.circleMarker([lat,lon],{
             radius:3.5,
             fillColor:warnaUnit[d["Unit Kerja"]],
-            color:"#000",
-            weight:1,
+            color:"transparent",
+            weight:0,
             fillOpacity:1
         }).bindPopup(`
             <b>Nama:</b> ${d.Nama}<br>
